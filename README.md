@@ -48,7 +48,7 @@ flowchart LR
 | Env/device binding | ✅ CEPS-3 | — | — |
 | scrypt KDF | ✅ CEPS-3 | — | — |
 | Anti-debug / double seal | ✅ CEPS-3 | — | — |
-| Watch mode | Планируется | — | ✅ |
+| Watch mode | ✅ | — | ✅ |
 | Прогресс сборки | CLI-логи | базовый CLI | ✅ |
 | Лицензия | проектная | MIT | MIT |
 
@@ -109,6 +109,14 @@ python CEPSbuilder/cepsbuilder.py new examples/my_plugin --name "My Plugin" --au
 
 Измените `PROJECT/src/main.py`. В `ceps.json` задайте `entry` и файлы в `encrypt`.
 
+Команда `new` сразу создаёт локальный ключ подписи в `PROJECT/ceps_keys/`. Этот каталог добавлен в `.gitignore`: приватный ключ нельзя отправлять в GitHub. Если каркас был создан с `--no-keygen` или вы скачали пример из репозитория, создайте ключ вручную:
+
+```bash
+python CEPSbuilder/cepsbuilder.py keygen --out examples/my_plugin/ceps_keys/my_plugin.key
+```
+
+Путь в команде должен совпадать со значением `key` в `ceps.json`. Для `examples/ceps_empty_plugin` это `ceps_keys/ceps_empty.key`.
+
 ### 3. Сборка
 
 ```bash
@@ -137,7 +145,14 @@ Watch следит за исходниками и `ceps.json`, игнориру�
 python CEPSbuilder/cepsbuilder.py watch examples/my_plugin --obf --pyc -v
 ```
 
-У watch те же флаги, что у build, плюс `--interval SECONDS` (по умолчанию `1.0`) и `--once` для одной проверки. Остановка: `Ctrl+C`. Ошибка сборки не завершает наблюдение.
+При запуске watch сборка выполняется сразу, затем проект проверяется каждые `--interval SECONDS` (по умолчанию `1.0`). Флаг `--once` означает «собрать один раз и завершиться» — это удобно для CI и проверки конфигурации. Остановка обычного режима: `Ctrl+C`. Ошибка сборки выводится в консоль, наблюдение продолжается.
+
+Пример для скачанного демонстрационного проекта:
+
+```bash
+python CEPSbuilder/cepsbuilder.py keygen --out examples/ceps_empty_plugin/ceps_keys/ceps_empty.key
+python CEPSbuilder/cepsbuilder.py watch examples/ceps_empty_plugin --once --no-obf
+```
 
 ### 5. Проверка подписи
 

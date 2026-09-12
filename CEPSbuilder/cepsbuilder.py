@@ -945,7 +945,7 @@ def main():
     wt.add_argument("project")
     wt.add_argument("-o", "--out")
     wt.add_argument("--interval", type=float, default=1.0, help="интервал проверки в секундах (по умолчанию 1)")
-    wt.add_argument("--once", action="store_true", help="проверить проект один раз и завершиться (для CI)")
+    wt.add_argument("--once", action="store_true", help="собрать один раз и завершиться (для CI)")
     wt.add_argument("--note", default="watch", help="пометка к блоку цепочки")
     wt.add_argument("--elyx", action="store_true")
     wt.add_argument("--obf", dest="obf", action="store_true", default=None)
