@@ -564,10 +564,60 @@ def build_project(project, out_dir=None, note="", verbose=False, elyx=False,
 def cmd_build(args):
     build_project(args.project, args.out, args.note, args.verbose, args.elyx,
                   obf=args.obf, zlib_launcher=bool(getattr(args, "zlib", False)),
-                  pyc=bool(getattr(args, "pyc", False)),
+                  pyc=getattr(args, "pyc", None),
                   allow_envsim=bool(getattr(args, "allow_envsim", False)),
-                  rt_pyc=bool(getattr(args, "rt_pyc", None)))
+                  rt_pyc=getattr(args, "rt_pyc", None))
     return 0
+
+
+def _project_snapshot(project):
+    """Return a stable, cheap fingerprint of source/config files for watch mode."""
+    rows = []
+    for root, dirs, names in os.walk(project):
+        dirs[:] = [d for d in dirs if d not in (".git", "__pycache__", "builds", "ceps_keys")]
+        for name in names:
+            path = os.path.join(root, name)
+            rel = os.path.relpath(path, project).replace("\\", "/")
+            try:
+                stat = os.stat(path)
+            except OSError:
+                continue
+            rows.append((rel, stat.st_mtime_ns, stat.st_size))
+    return tuple(sorted(rows))
+
+
+def cmd_watch(args):
+    """Rebuild after source changes; --once makes this suitable for CI/smoke tests."""
+    project = os.path.abspath(args.project)
+    if not os.path.isdir(project):
+        raise SystemExit("Проект не найден: %s" % project)
+    previous = _project_snapshot(project)
+    print("Watch: %s (интервал %.2f с, Ctrl+C для выхода)" % (project, args.interval))
+    def rebuild():
+        try:
+            build_project(project, out_dir=args.out, note=args.note,
+                          verbose=args.verbose, elyx=args.elyx,
+                          obf=args.obf, zlib_launcher=args.zlib, pyc=args.pyc,
+                          allow_envsim=args.allow_envsim, rt_pyc=args.rt_pyc)
+            return True
+        except (SystemExit, Exception) as exc:
+            print("Watch: сборка не удалась: %s" % exc, file=sys.stderr)
+            return False
+    rebuild()
+    try:
+        while True:
+            if args.once:
+                return 0
+            time.sleep(args.interval)
+            current = _project_snapshot(project)
+            if current == previous:
+                continue
+            previous = current
+            print("Изменения обнаружены — запускаю сборку")
+            rebuild()
+    except KeyboardInterrupt:
+        print("\nWatch остановлен")
+        return 0
 
 
 # ---------------------------------------------------------------------------
@@ -890,6 +940,22 @@ def main():
                     help="рантайм тоже в marshal-3.11 (в артефактах нет исходника ceps_rt)")
     bd.add_argument("-v", "--verbose", action="store_true")
     bd.set_defaults(fn=cmd_build)
+
+    wt = sub.add_parser("watch", help="следить за проектом и пересобирать при изменениях")
+    wt.add_argument("project")
+    wt.add_argument("-o", "--out")
+    wt.add_argument("--interval", type=float, default=1.0, help="интервал проверки в секундах (по умолчанию 1)")
+    wt.add_argument("--once", action="store_true", help="проверить проект один раз и завершиться (для CI)")
+    wt.add_argument("--note", default="watch", help="пометка к блоку цепочки")
+    wt.add_argument("--elyx", action="store_true")
+    wt.add_argument("--obf", dest="obf", action="store_true", default=None)
+    wt.add_argument("--no-obf", dest="obf", action="store_false")
+    wt.add_argument("--zlib", action="store_true")
+    wt.add_argument("--pyc", action="store_true", default=None)
+    wt.add_argument("--allow-envsim", action="store_true")
+    wt.add_argument("--rt-pyc", dest="rt_pyc", action="store_true", default=None)
+    wt.add_argument("-v", "--verbose", action="store_true")
+    wt.set_defaults(fn=cmd_watch)
 
     vf = sub.add_parser("verify", help="проверить .ceps архив")
     vf.add_argument("archive")

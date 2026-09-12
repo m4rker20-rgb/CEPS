@@ -83,9 +83,65 @@ flowchart TD
 
 ## Быстрый старт
 
+### 1. Подготовка
+
+Нужен Python 3.10 или новее. Python 3.11 требуется для флагов `--pyc` и `--rt-pyc`.
+
+```bash
+git clone https://github.com/m4rker20-rgb/CEPS.git
+cd CEPS
+```
+
+### 2. Создание своего плагина
+
 ```bash
 python CEPSbuilder/cepsbuilder.py new examples/my_plugin --name "My Plugin" --author @Coder_Minecraft
-python CEPSbuilder/cepsbuilder.py build examples/my_plugin --obf --pyc --rt-pyc
+```
+
+| Аргумент `new` | Назначение |
+|---|---|
+| `PROJECT` | каталог проекта |
+| `--name` | отображаемое имя (обязательно) |
+| `--author` | автор (обязательно) |
+| `--id` | идентификатор файлов |
+| `--desc` | описание плагина |
+| `--no-keygen` | не создавать ключ автоматически |
+
+Измените `PROJECT/src/main.py`. В `ceps.json` задайте `entry` и файлы в `encrypt`.
+
+### 3. Сборка
+
+```bash
+python CEPSbuilder/cepsbuilder.py build examples/my_plugin --obf --pyc --rt-pyc -v
+```
+
+| Аргумент `build` | Назначение |
+|---|---|
+| `-o, --out DIR` | каталог артефактов |
+| `--note TEXT` | заметка в hash-chain |
+| `--elyx` | создать `.eaf` |
+| `--obf` / `--no-obf` | включить/выключить AST-обфускацию |
+| `--zlib` | zlib+base64 launcher |
+| `--pyc` | payload без `.py`, marshal Python 3.11 |
+| `--rt-pyc` | runtime тоже в marshal-формате |
+| `--allow-envsim` | ПК-заглушки для теста CEPS-3 |
+| `-v, --verbose` | подробный лог |
+
+Результаты находятся в `PROJECT/builds/`: `.ceps`, `.py`, `.plugin`, а с `--elyx` ещё `.eaf`.
+
+### 4. Watch mode
+
+Watch следит за исходниками и `ceps.json`, игнорирует `builds/`, `.git`, ключи и кэш, а после изменения запускает сборку:
+
+```bash
+python CEPSbuilder/cepsbuilder.py watch examples/my_plugin --obf --pyc -v
+```
+
+У watch те же флаги, что у build, плюс `--interval SECONDS` (по умолчанию `1.0`) и `--once` для одной проверки. Остановка: `Ctrl+C`. Ошибка сборки не завершает наблюдение.
+
+### 5. Проверка подписи
+
+```bash
 python CEPSbuilder/cepsbuilder.py verify examples/my_plugin/builds/my_plugin.ceps --pubkey PUBLIC_KEY_HEX
 ```
 
