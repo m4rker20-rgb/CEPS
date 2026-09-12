@@ -191,3 +191,20 @@ python CEPSbuilder/cepsbuilder.py selftest
 ```
 
 CI: [`.github/workflows/ci.yml`](.github/workflows/ci.yml). Подробности: [`CEPSbuilder/README.md`](CEPSbuilder/README.md). Уязвимости: [`SECURITY.md`](SECURITY.md).
+
+## Лицензия
+
+Проект распространяется под **CEPS License v1.0** (кастомная source-available
+лицензия, не OSI) — см. файл [`LICENSE`](LICENSE).
+
+Ключевое условие: любой плагин, собранный (упакованный) через CEPSbuilder,
+**обязан явно указывать, что собран с помощью CEPS** — фразу `Built with CEPS`
+и ссылку на репозиторий `https://github.com/m4rker20-rgb/CEPS`. Билдер
+вписывает эту пометку в каждый артефакт автоматически:
+
+- строка-заголовок в начале `.py` / `.plugin` / `.eaf` лоадера;
+- атрибут `__built_with__` внутри лоадера;
+- поле `built_with` в манифесте `.ceps` и в meta Elyx-обёртки.
+
+Убирать или прятать эту пометку из собранного плагина запрещено лицензией.
+

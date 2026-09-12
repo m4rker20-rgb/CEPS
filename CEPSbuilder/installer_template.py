@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-# Сгенерировано CEPSbuilder (формат CEPS-1). Не редактируй — правки ломают подпись.
+# Built with CEPS — https://github.com/m4rker20-rgb/CEPS (формат CEPS-1).
+# Не редактируй — правки ломают подпись.
 # CEPS Installer: принимает .ceps файлы в чате; собирается make_installer.py.
 
 import io

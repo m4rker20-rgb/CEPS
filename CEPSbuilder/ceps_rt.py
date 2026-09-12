@@ -26,6 +26,9 @@ CHAIN_PATH = "ceps/chain.json"
 RT_PATH = "ceps_rt.py"
 RT_PYC_PATH = "ceps_rt.pyc"  # marshal-3.11 форма рантайма (режим rt_pyc)
 ENC_MAGIC = b"CEPSENC1"
+# Ссылка на проект CEPS — вшивается в каждый собранный плагин как обязательная
+# атрибуция (см. LICENSE: условие «Built with CEPS»). Меняй в одном месте.
+CEPS_REPO = "https://github.com/m4rker20-rgb/CEPS"
 # Билдер вшивает сюда печать guard-таблицы лоадера (второй затвор, пункт 4).
 EXPECTED_GUARD_SEAL = None
 # Билдер включает лёгкий анти-дебаг перед деривацией ключа (пункт 7).
@@ -841,6 +844,7 @@ __version__ = @@VERSION@@
 __icon__ = @@ICON@@
 __app_version__ = @@APP_VERSION@@
 __sdk_version__ = @@SDK_VERSION@@
+__built_with__ = "@@BUILT_WITH@@"
 
 _PUBKEY = @@PUBKEY@@
 _SHARES = @@SHARES@@
@@ -892,6 +896,7 @@ from base_plugin import BasePlugin, HookResult
 
 @@GUARD_BLOCK@@
 _ID = @@ID@@
+__built_with__ = "@@BUILT_WITH@@"
 _PUBKEY = @@PUBKEY@@
 _SHARES = @@SHARES@@
 _ENV = @@ENV@@
@@ -1105,8 +1110,9 @@ def make_loader(cfg, pubkey_hex, shares, env_slots, master_check, entry, blob,
     out = prelude
     out = out.replace("@@GUARD_BLOCK@@", guard_block)
     out = out.replace("@@GENLINE@@",
-                      "Сгенерировано CEPSbuilder (формат CEPS-%s). Не редактируй — правки ломают подпись."
-                      % ("3" if env_slots else "1"))
+                      "Built with CEPS — %s (формат CEPS-%s, собрано через CEPSbuilder). "
+                      "Этот плагин упакован средствами CEPS; атрибуция обязательна (см. LICENSE)."
+                      % (CEPS_REPO, "3" if env_slots else "1"))
     for token, value in (
         ("@@ID@@", cfg["id"]),
         ("@@NAME@@", cfg["name"]),
@@ -1121,6 +1127,7 @@ def make_loader(cfg, pubkey_hex, shares, env_slots, master_check, entry, blob,
         ("@@ENTRY@@", entry),
     ):
         out = out.replace(token, json.dumps(value))
+    out = out.replace("@@BUILT_WITH@@", CEPS_REPO)
     out = out.replace("@@SHARES@@", repr(tuple(shares if not env_slots else ())))
     out = out.replace("@@ENV@@", json.dumps(list(env_slots or ()), separators=(",", ":")))
     out = out.replace("@@B85@@", b85_block)

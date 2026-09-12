@@ -470,6 +470,7 @@ def build_project(project, out_dir=None, note="", verbose=False, elyx=False,
 
     manifest = {
         "format": "CEPS-1",
+        "built_with": "https://github.com/m4rker20-rgb/CEPS",
         "entry": entry,
         "created": int(time.time()),
         "obfuscated": bool(obf_ctx),
@@ -534,7 +535,8 @@ def build_project(project, out_dir=None, note="", verbose=False, elyx=False,
             ("id", cfg["id"]), ("name", cfg["name"]), ("description", cfg["description"]),
             ("author", cfg["author"]), ("version", str(cfg["version"])),
             ("icon", cfg["icon"]), ("app_version", cfg["app_version"]),
-            ("sdk_version", cfg["sdk_version"])))
+            ("sdk_version", cfg["sdk_version"]),
+            ("built_with", "https://github.com/m4rker20-rgb/CEPS")))
         # main.py самодостаточен: блоб зашит внутрь, __file__ не нужен.
         eaf_main = rt.make_loader(cfg, pubkey_hex, shares, env_slots, master_check,
                                   entry, blob_bytes, rt_src, elyx=True,

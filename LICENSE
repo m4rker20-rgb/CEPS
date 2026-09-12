@@ -1,0 +1,73 @@
+CEPS License v1.0
+====================
+
+Copyright (c) 2026 m4rker20-rgb (@Coder_Minecraft).
+All rights reserved, except as expressly granted below.
+
+This is a custom, source-available license for the CEPS project
+(CEPSbuilder and related tooling: https://github.com/m4rker20-rgb/CEPS).
+It is NOT an open-source license in the OSI sense. It grants broad use of
+the tooling while requiring attribution both in the tooling and in anything
+the tooling produces.
+
+
+1. GRANT OF RIGHTS
+------------------
+Subject to the conditions in section 2, you are granted a worldwide,
+royalty-free, non-exclusive, perpetual license to use, copy, modify, and
+distribute the Software (the CEPS source code, build tooling, runtime, and
+documentation), including for commercial purposes.
+
+
+2. CONDITIONS
+--------------
+2.1 Tool attribution. Any copy or substantial portion of the Software that you
+    distribute must retain this license, the copyright notice above, and all
+    copyright/license notices present in the source files.
+
+2.2 Attribution in Built Artifacts (output clause). CEPSbuilder exists to
+    package plugins. If you use the Software, in whole or in part, to build,
+    package, compile, obfuscate, or otherwise produce any plugin, package,
+    loader, installer, or other redistributable artifact (each, a "Built
+    Artifact"), that Built Artifact MUST visibly and explicitly state that it
+    was built with CEPS. The notice MUST:
+      (a) include the words "Built with CEPS" (or the equivalent in the
+          artifact's primary language); and
+      (b) include a link to the CEPS repository:
+          https://github.com/m4rker20-rgb/CEPS
+    The notice must appear in the artifact itself (for example, in the
+    plugin header/metadata or a top-of-file comment emitted by the Software)
+    and must not be removed, hidden, or obscured. The Software embeds such a
+    notice by default; removing or suppressing it from a Built Artifact is a
+    violation of this license.
+
+
+3. NO WARRANTY
+--------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING
+FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+
+Client-side protection (encryption, signing, guards) does not make executed
+code absolutely tamper-proof: the payload is decrypted on the end user's
+device. This license governs distribution, not the technical limits of the
+protection scheme.
+
+
+4. ACCEPTANCE
+-------------
+By using the Software or distributing a Built Artifact, you agree to the
+terms of this license.
+
+---
+Кратко по-русски:
+Автор разрешает использовать, копировать, менять и распространять CEPS
+(в том числе коммерчески) при двух условиях: (1) сохранять эту лицензию и
+авторские уведомления в самом ПО; (2) любой плагин/сборка, сделанная через
+CEPS, обязана явно указывать «Built with CEPS» и ссылку на репозиторий
+https://github.com/m4rker20-rgb/CEPS. CEPS вписывает эту пометку в
+собранный плагин автоматически — убирать её из артефакта нельзя.
