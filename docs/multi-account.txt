@@ -1,0 +1,115 @@
+# Multi-account
+
+How account scoping works, why hooks fire for accounts that are not on screen, and how to target the right one.
+
+exteraGram keeps every logged-in account connected at the same time. Accounts that are not on screen still receive updates, still send requests, and still fire your hooks.
+
+That matters because the account helpers in client_utils default to the account selected in the UI, which is global state that has nothing to do with the account your callback was invoked for. Reply from inside a hook without thinking about it and the message can go out from the wrong account.
+
+## The rule
+
+Every hook already tells you which account it is for:
+
+
+```
+def on_update_hook(self, update_name: str, account: int, update: Any) -> HookResult:
+```
+
+
+Use that account for anything you do in response to it.
+
+## Targeting an account
+
+Every account-scoped helper takes an optional account:
+
+
+```
+from client_utils import get_messages_controller, get_user_config, send_text
+ 
+get_messages_controller(account)
+get_user_config(account)
+send_text(peer, "hello", account=account)
+```
+
+
+When you do more than one thing, take a client instead of repeating yourself. self.client(...) returns an AccountClient with the same method names, bound to one account:
+
+
+```
+from base_plugin import BasePlugin, HookResult
+ 
+ 
+class ReplyPlugin(BasePlugin):
+    def on_plugin_load(self):
+        self.add_hook("TL_updateNewMessage")
+ 
+    def on_update_hook(self, update_name: str, account: int, update) -> HookResult:
+        if update_name != "TL_updateNewMessage":
+            return HookResult()
+ 
+        client = self.client(account)
+ 
+        me = client.get_user_config().getCurrentUser()
+        client.send_text(update.message.dialog_id, f"replying as {me.first_name}")
+ 
+        return HookResult()
+```
+
+
+get_client(account) in client_utils does the same thing outside of a plugin class.
+
+## What happens if you forget
+
+Nothing changes silently. A helper called without an account still uses the selected account, exactly as before — but if it runs while you are handling a different account, the SDK logs a warning once per helper:
+
+
+```
+get_messages_controller() is using account 0 because it is the one selected in the UI,
+but it was called while handling account 1. Pass account=1, or use get_client(1),
+if you meant that account. Logged once per helper.
+```
+
+
+Seeing that in your logs means the plugin is reading or writing the wrong account.
+
+The scope follows your work: it is set around every hook callback, around run_on_queue work scheduled from one, and around send_request callbacks. get_hook_account() returns it, or None outside a callback, and self.client() with no argument follows it.
+
+## Deliberately using the selected account
+
+Sometimes the selected account is genuinely what you want, for example writing to the Saved Messages of whoever is looking at the screen. Say so explicitly and the warning goes away:
+
+
+```
+from client_utils import get_selected_account, send_text
+ 
+send_text(peer, "note to self", account=get_selected_account())
+```
+
+## Notification delegates
+
+NotificationCenterDelegate.didReceivedNotification receives an account too, and it is not scoped automatically. Take a client from it yourself:
+
+
+```
+class MyDelegate(NotificationCenterDelegate):
+    def didReceivedNotification(self, id: int, account: int, args):
+        get_client(account).get_messages_controller()
+```
+
+## Requirements
+
+The account parameters, AccountClient, get_client(), get_hook_account() and get_selected_account() need SDK 1.4.5.0 or newer. Declare it so older installs fail with a clear message instead of a TypeError:
+
+
+```
+__sdk_version__ = ">=1.4.5.0"
+```
+
+
+Previous
+
+Plugin Class
+
+Next
+
+Plugin Settings

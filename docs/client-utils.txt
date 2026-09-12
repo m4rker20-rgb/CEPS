@@ -1,0 +1,380 @@
+# Client Utilities
+
+Helpers for queues, requests, notifications, controllers, fragments, and sending or editing messages.
+
+This module contains the higher-level helpers most plugins use when they need to interact with Telegram internals without dropping into raw Java code every time.
+
+Typical uses:
+
+queueing work off the UI thread
+sending Telegram requests
+sending or editing messages and media
+reaching the current fragment or account controllers
+listening to NotificationCenter
+## Queues (Background Threads)
+
+Use run_on_queue(...) for work that should not block the UI thread: network requests, file I/O, heavy parsing, or long computations.
+
+
+```
+import time
+ 
+from android_utils import log
+from client_utils import run_on_queue
+ 
+ 
+def my_long_task(parameter: str):
+    log(f"Task started with: {parameter}")
+    time.sleep(5)  # Simulate a long operation.
+    log(f"Task finished for: {parameter}")
+ 
+ 
+# Run on the default PLUGINS_QUEUE.
+run_on_queue(lambda: my_long_task("some_data"))
+```
+
+
+You can target a specific queue and add a delay in milliseconds:
+
+
+```
+from client_utils import GLOBAL_QUEUE, run_on_queue
+ 
+ 
+# Run on GLOBAL_QUEUE after a 2.5 second delay.
+run_on_queue(lambda: my_long_task("other_data"), GLOBAL_QUEUE, 2500)
+```
+
+
+Available queue-name constants:
+
+
+```
+STAGE_QUEUE = "stageQueue"
+GLOBAL_QUEUE = "globalQueue"
+CACHE_CLEAR_QUEUE = "cacheClearQueue"
+SEARCH_QUEUE = "searchQueue"
+PHONE_BOOK_QUEUE = "phoneBookQueue"
+THEME_QUEUE = "themeQueue"
+EXTERNAL_NETWORK_QUEUE = "externalNetworkQueue"
+PLUGINS_QUEUE = "pluginsQueue"
+```
+
+
+If you need the raw Java DispatchQueue, use get_queue_by_name(...):
+
+
+```
+from client_utils import PLUGINS_QUEUE, get_queue_by_name
+ 
+ 
+plugins_dispatch_queue = get_queue_by_name(PLUGINS_QUEUE)
+if plugins_dispatch_queue:
+    # You can call DispatchQueue methods directly here.
+    pass
+```
+
+## Sending Telegram API Requests
+
+send_request(request, fn) sends a raw Telegram TLObject through the ConnectionsManager of the account selected in the UI, or of account= when you pass one. Your callback runs with that account in scope, so helpers you call from it can follow it — see Multi-account.
+
+You pass a normal Python callback. The SDK wraps it into a RequestDelegate for you.
+
+
+```
+from java.lang import Integer
+from org.telegram.tgnet import TLRPC
+ 
+from android_utils import log
+from client_utils import send_request
+ 
+ 
+def handle_read_contents_response(response, error):
+    if error:
+        log(f"Error reading message contents: {error.text}")
+        return
+ 
+    if response and isinstance(response, TLRPC.TL_messages_affectedMessages):
+        log(f"Successfully read contents. PTS: {response.pts}, Count: {response.pts_count}")
+    else:
+        log(f"Unexpected response type: {type(response)}")
+ 
+ 
+# Create the request object.
+req = TLRPC.TL_messages_readMessageContents()
+req.id.add(Integer(12345))
+ 
+# Send the request. The return value is the ConnectionsManager request id.
+request_id = send_request(req, handle_read_contents_response)
+log(f"Sent TL_messages_readMessageContents, request ID: {request_id}")
+```
+
+
+You usually do not need to instantiate RequestCallback manually unless you specifically want the proxy class itself.
+
+## Sending Messages and Media
+
+The send_* helpers build the proper SendMessageParams, prepare media objects when needed, and send the final operation on the correct thread.
+
+All send_* helpers accept optional parse_mode="HTML" or parse_mode="Markdown".
+
+### send_text
+
+```
+from client_utils import send_text
+ 
+ 
+peer_id = 123456789
+ 
+# Send a plain text message.
+send_text(peer_id, "Hello from my plugin!")
+ 
+# Send a reply.
+send_text(peer_id, "This is a reply.", replyToMsg=9876)
+ 
+# Send a message with Markdown formatting.
+send_text(peer_id, "**Hello** from my *plugin*!", parse_mode="Markdown")
+```
+
+### send_photo
+
+```
+from client_utils import send_photo
+ 
+ 
+peer_id = 123456789
+photo_path = "/path/to/your/image.jpg"
+ 
+# Send a photo with a caption.
+send_photo(peer_id, photo_path, caption="Here is a photo!")
+ 
+# Send a high-quality photo with HTML caption.
+send_photo(
+    peer_id,
+    photo_path,
+    caption="<b>High quality</b> photo.",
+    high_quality=True,
+    parse_mode="HTML",
+)
+```
+
+### send_document
+
+```
+from client_utils import send_document
+ 
+ 
+peer_id = 123456789
+file_path = "/path/to/your/file.zip"
+ 
+send_document(peer_id, file_path, caption="Here is the zip file.")
+```
+
+### send_video
+
+```
+from client_utils import send_video
+ 
+ 
+peer_id = 123456789
+video_path = "/path/to/your/video.mp4"
+ 
+# The SDK will fill common video attributes such as size and duration.
+send_video(peer_id, video_path, caption="Check out this video!")
+```
+
+### send_audio
+
+```
+from client_utils import send_audio
+ 
+ 
+peer_id = 123456789
+audio_path = "/path/to/your/song.mp3"
+ 
+# The SDK will fill common audio metadata when possible.
+send_audio(peer_id, audio_path, caption="Listen to this!")
+```
+
+### Low-level send_message
+
+If you need more control, use send_message(params, parse_mode=None) directly.
+
+It accepts a dictionary of fields that map onto SendMessagesHelper.SendMessageParams.
+
+
+```
+from client_utils import send_message
+ 
+ 
+send_message(
+    {
+        "peer": 123456789,
+        "message": "Scheduled message from plugin",
+        "scheduleDate": 1735689600,
+        "notify": False,
+    }
+)
+```
+
+
+Commonly used keys include:
+
+peer
+message
+caption
+photo
+document
+path
+replyToMsg
+replyMarkup
+params
+notify
+scheduleDate
+ttl
+hasMediaSpoilers
+sendingHighQuality
+
+Parse mode
+
+parse_mode is case-insensitive and currently supports only html and markdown. When it is provided, the SDK parses either message or caption and fills entities for you.
+
+## Editing Messages
+
+edit_message(...) edits an existing MessageObject.
+
+You can change:
+
+textual content
+replacement media file
+spoiler state for replaced media
+
+```
+from client_utils import edit_message
+ 
+ 
+# Assume `message_obj` is a valid MessageObject instance.
+ 
+# Edit the text of a message.
+edit_message(message_obj, text="This is the new, edited text.")
+ 
+# Edit text with HTML formatting.
+edit_message(message_obj, text="This is <b>bold</b> text.", parse_mode="HTML")
+ 
+# Replace the media in a message and update the text at the same time.
+new_photo_path = "/path/to/another/image.jpg"
+edit_message(message_obj, file_path=new_photo_path, text="Here is a new photo instead.")
+ 
+# Replace media with spoiler enabled.
+edit_message(message_obj, file_path=new_photo_path, with_spoiler=True)
+```
+
+
+Notes:
+
+message_obj must be a real org.telegram.messenger.MessageObject
+pass text= when you want to replace message text or caption text
+pass file_path= when you want to replace attached media
+unsupported parse_mode values raise ValueError
+## Fragments, Controllers, and Account Helpers
+
+These helpers return commonly used Telegram components for the account selected in the UI, unless you pass an explicit account=. See Multi-account — inside a hook, the account you are handling is often not the selected one.
+
+
+```
+from client_utils import (
+    get_last_fragment,
+    get_account_instance,
+    get_messages_controller,
+    get_contacts_controller,
+    get_media_data_controller,
+    get_connections_manager,
+    get_location_controller,
+    get_notifications_controller,
+    get_messages_storage,
+    get_send_messages_helper,
+    get_file_loader,
+    get_secret_chat_helper,
+    get_download_controller,
+    get_notifications_settings,
+    get_notification_center,
+    get_media_controller,
+    get_user_config,
+)
+ 
+ 
+fragment = get_last_fragment()
+account_instance = get_account_instance()
+messages_controller = get_messages_controller()
+connections_manager = get_connections_manager()
+send_helper = get_send_messages_helper()
+user_cfg = get_user_config()
+ 
+if user_cfg.getCurrentUser():
+    current_user = user_cfg.getCurrentUser()
+ 
+# Every one of them also takes an explicit account:
+messages_controller = get_messages_controller(1)
+```
+
+
+These helpers are thin convenience wrappers, but they keep plugin code much cleaner.
+
+get_media_controller() is the one exception with no account parameter: MediaController is a single global instance, not per-account.
+
+## NotificationCenterDelegate
+
+NotificationCenterDelegate is a ready-made Python base class for implementing NotificationCenter.NotificationCenterDelegate.
+
+It is useful when you want to listen to client-side notifications from Telegram.
+
+
+```
+from java.lang import Object
+from java import jarray
+ 
+from client_utils import NotificationCenterDelegate, get_notification_center
+from org.telegram.messenger import NotificationCenter
+ 
+ 
+class MyDelegate(NotificationCenterDelegate):
+    def didReceivedNotification(self, id: int, account: int, args: jarray(Object)):
+        if id == NotificationCenter.didUpdateConnectionState:
+            print("Connection state changed:", args)
+ 
+ 
+delegate = MyDelegate()
+notification_center = get_notification_center()
+notification_center.addObserver(delegate, NotificationCenter.didUpdateConnectionState)
+ 
+# Later, when you no longer need it:
+# notification_center.removeObserver(delegate, NotificationCenter.didUpdateConnectionState)
+```
+
+
+You do not need to wrap NotificationCenterDelegate with dynamic_proxy(...) yourself. Subclassing it is enough.
+
+If you need a generated Java subclass instead of a simple interface proxy, see Class Proxy.
+
+## Displaying Bulletins
+
+For bulletins and bottom notifications, use ui.bulletin.BulletinHelper.
+
+
+```
+from ui.bulletin import BulletinHelper
+ 
+ 
+BulletinHelper.show_info("This is an informational message.")
+```
+
+
+For the full list of supported bulletin helpers and examples, see Bulletin Helper.
+
+Previous
+
+Android Utilities
+
+Next
+
+Text Formatting

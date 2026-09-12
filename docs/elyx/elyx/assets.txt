@@ -1,0 +1,269 @@
+Elyx
+# Assets
+
+Bundle and load images, SVG, Lottie, JSON, YAML, text, and binary resources.
+
+# Assets
+
+Declare a resource directory in refmap.yml:
+
+
+```
+assets: plugin/res
+```
+
+
+Example tree:
+
+
+```
+plugin/res/
+|-- logo.svg
+|-- loading.json
+|-- banner.png
+|-- defaults.yml
+|-- about.txt
+`-- icons/
+    |-- add.svg
+    `-- remove.svg
+```
+
+
+Then import the plugin-bound asset collection:
+
+
+```
+from elyx import assets
+```
+
+
+assets exists only when the plugin has a valid asset directory. If assets are optional, inspect the environment:
+
+
+```
+from elyx import get_environment
+ 
+assets = get_environment().get("assets")
+```
+
+## Find an asset
+
+There are three equivalent access styles:
+
+
+```
+logo = assets.logo
+logo = assets["logo"]
+logo = assets.get("logo")
+```
+
+
+The extension may be included:
+
+
+```
+logo = assets["logo.svg"]
+```
+
+
+Nested paths are supported:
+
+
+```
+add_icon = assets["icons/add"]
+add_icon = assets.icons.add
+```
+
+
+Attribute lookup uses a normalized filename stem. Characters other than ASCII letters and digits become _:
+
+
+```
+empty-state.svg -> assets.empty_state
+logo.dark.png   -> assets.logo
+```
+
+
+Avoid ambiguous stems
+
+Files such as logo.svg and logo.png have the same normalized stem logo. Access them by full filename or give them distinct stems.
+
+## Assets
+
+An Assets object represents one directory.
+
+
+```
+from elyx import Assets
+ 
+resource_count = len(assets)
+has_logo = "logo" in assets
+ 
+for filename in assets:
+    self.log(filename)
+```
+
+
+Important members:
+
+Member	Result
+get(name)	Asset for a file or Assets for a directory
+obj[name]	Alias for get(name)
+obj.name	Attribute-style lookup
+parent	Assets for the parent directory
+dir_path	Resource directory as pathlib.Path
+len(obj)	Number of direct children
+name in obj	Whether a direct child or normalized stem exists
+
+Missing items raise AssetNotFoundException.
+
+## Asset
+
+An Asset represents one file.
+
+
+```
+logo = assets.logo
+ 
+self.log(logo.name)
+self.log(logo.filename)
+self.log(logo.ext)
+self.log(logo.path_str)
+```
+
+
+Path members:
+
+Member	Type	Meaning
+name	str	Normalized logical name
+filename	str	Actual filename
+ext	str	Last filename extension without .
+path	pathlib.Path	Absolute or resolved Python path
+path_str	str	String form of path
+java_file	java.io.File	Java file wrapper
+## Read content
+
+```
+raw_bytes = assets.banner.content_bytes()
+text = assets.about.content_string()
+json_data = assets.loading.content_json()
+yaml_data = assets.defaults.content_yaml()
+automatic = assets.defaults.content()
+```
+
+
+content():
+
+parses .json, .yaml, and .yml into a dictionary
+otherwise tries UTF-8 text
+falls back to bytes when text decoding fails
+
+Use the explicit method when the expected type matters.
+
+## Android image helpers
+### Regular drawables
+
+```
+drawable = assets.banner.to_drawable()
+location = assets.banner.to_image_location()
+```
+
+to_drawable() uses Android's Drawable.createFromPath
+to_image_location() creates a Telegram ImageLocation
+### Bitmap drawable
+
+```
+bitmap_drawable = assets.banner.to_bitmap_drawable(width=64, height=64)
+```
+
+
+Width and height are bitmap pixels. Use this with bitmap-compatible files.
+
+### SVG
+
+```
+svg_drawable = assets.logo.to_svg_drawable()
+svg_bitmap = assets.logo.to_svg_bitmap(width=48, height=48)
+white_bitmap = assets.logo.to_svg_bitmap(48, 48, white=True)
+```
+
+
+Passing both dimensions to to_svg_drawable returns a scaled BitmapDrawable:
+
+
+```
+scaled = assets.logo.to_svg_drawable(width=48, height=48)
+```
+
+
+Create a themed SVG thumbnail:
+
+
+```
+from org.telegram.ui.ActionBar import Theme
+ 
+thumb = assets.logo.to_svg_thumb(
+    Theme.key_windowBackgroundWhiteBlueIcon,
+    1.0,
+)
+```
+
+### Lottie
+
+```
+animation = assets.loading.to_lottie_drawable(width=32, height=32)
+```
+
+
+Lottie dimensions are converted through Android density helpers.
+
+## Create an asset from another path
+
+```
+from elyx import Asset
+ 
+asset = Asset.from_path("/absolute/path/to/file.svg")
+```
+
+
+Asset.from_path also accepts pathlib.Path and java.io.File.
+
+For a temporary downloaded resource:
+
+
+```
+from elyx import Asset
+ 
+remote = Asset.temp_asset_from_url(
+    "https://example.com/icon.svg",
+    "downloaded_icon.svg",
+)
+```
+
+
+This is synchronous network and file I/O. Run it on a background queue, never directly in a UI callback or high-frequency hook.
+
+## Errors
+
+```
+from elyx import AssetNotFoundException, AssetsDirNotFoundException
+ 
+try:
+    icon = assets["missing.svg"]
+except AssetNotFoundException:
+    icon = assets.logo
+```
+
+AssetNotFoundException means the requested file does not exist
+AssetsDirNotFoundException means an asset root no longer exists
+ValueError means a supplied path is not an allowed asset directory
+
+Bundled asset paths are read-only from the plugin's point of view. Store mutable user data in the app data/cache helpers described in File Utilities.
+
+Previous
+
+Modules and Imports
+
+Next
+
+Localization

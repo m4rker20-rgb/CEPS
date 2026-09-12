@@ -1,0 +1,232 @@
+Elyx
+# ElyxBuilder
+
+Scaffold, validate, build, watch, and inspect Elyx plugin projects from the command line.
+
+# ElyxBuilder
+
+ElyxBuilder is the command-line tool for creating and packaging Elyx projects. It can generate the initial structure, validate Python syntax, build source or compiled archives, rebuild when files change, and maintain build ignore lists.
+
+ElyxBuilder is optional. Elyx does not require it at runtime, and a correctly structured ZIP archive can still be built manually.
+
+## Install the CLI
+
+ElyxBuilder requires Python 3.10 or newer:
+
+
+```
+python -m pip install --upgrade ElyxBuilder
+```
+
+
+Verify the installation and inspect the commands supported by the installed version:
+
+
+```
+elyb --version
+elyb --help
+```
+
+
+Python 3.11 is required only when creating compiled .pyc builds, because the bytecode version must match the Python runtime on the device.
+
+## Create a project interactively
+
+Open an empty directory which will become the repository root and run:
+
+
+```
+elyb new
+```
+
+
+The interactive wizard asks for the plugin name, author, id, version constraints, optional icon, and the refmap and metadata formats. Press Enter to accept a generated value.
+
+The generated project resembles:
+
+
+```
+my_plugin_repository/
+|-- refmap.yml
+`-- MyPlugin/
+    |-- .elyxbuilder/
+    |   `-- config.yml
+    |-- locales/
+    |   |-- strings_en.json
+    |   `-- strings_ru.json
+    |-- meta.yml
+    |-- res/
+    |   `-- .gitkeep
+    `-- src/
+        `-- main.py
+```
+
+
+refmap.yml stays in the repository and archive root. The other files live in a normalized directory based on the plugin name. ElyxBuilder writes all paths into refmap, so plugin authors do not need to move the generated files.
+
+Before the first build:
+
+replace the generated descriptions in locales
+review the id and version constraints in meta.yml
+implement the plugin in src/main.py and additional modules
+add resources to res
+## Create a project without prompts
+
+Use --gen in scripts or when all required values are already known:
+
+
+```
+elyb new --gen --name "My Plugin" --author myname
+```
+
+
+The short form is equivalent:
+
+
+```
+elyb new -g -n "My Plugin" -a myname
+```
+
+
+Choose a different archive extension with --zipformat:
+
+
+```
+elyb new -g -n "My Plugin" -a myname --zipformat elyx
+```
+
+
+In generation mode, --name and --author are required. ElyxBuilder normalizes the directory name and creates the plugin id as author_PluginName, limited to 32 characters. The display name in metadata is kept unchanged.
+
+## Build the plugin
+
+Run build commands from the directory containing refmap.yml.
+
+For a source build with syntax validation:
+
+
+```
+elyb build --ast --verbose --no-folder
+```
+
+
+For a compiled build optimized at level 2:
+
+
+```
+elyb build --compile 2 --verbose --no-folder
+```
+
+
+The shorter form used by many Elyx projects is:
+
+
+```
+elyb build -c 2 -v -nf
+```
+
+
+Builds are written to builds/. --no-folder excludes the .elyxbuilder directory from the published archive. --ast and --compile cannot be used together because compilation already parses the Python files.
+
+Useful build options include:
+
+Option	Purpose
+-v, --verbose	Print the complete build log
+-a, --ast	Validate Python files before packaging
+-c [LEVEL], --compile [LEVEL]	Compile Python using optimization level 0, 1, or 2
+-r, --reset	Clear the incremental compilation cache
+-nf, --no-folder	Exclude the ElyxBuilder configuration directory
+--no-assets	Exclude resources listed in optionalAssets
+-ni, --no-info	Omit ElyxBuilder build metadata
+-sv VERSION [APPEND]	Record a target version and optionally append it to the archive name
+-sc PACKAGE [NAME]	Record a target client and optionally append its name
+
+Run elyb build --help before relying on advanced options in automation. The installed version is the source of truth for its supported arguments.
+
+## Rebuild when files change
+
+watch polls the project and starts a build after a change:
+
+
+```
+elyb watch 10 --args "--ast -v -nf"
+```
+
+
+The first argument is the polling interval in seconds. ElyxBuilder stores the most recent result as builds/latest.eaf, or with the archive extension configured for the project.
+
+In the interactive watch screen:
+
+press P to pause or resume
+press Q to exit
+
+elyb watch rebuilds the archive but does not install it on a device. Use the custom elyx_dev_client.py workflow for synchronizing individual changes and reloading an installed plugin on the phone.
+
+## Compilation cache
+
+Compiled builds use an incremental cache. Check which source files changed since the previous compiled build:
+
+
+```
+elyb cached
+```
+
+
+Use elyb build --compile --reset when a clean compilation is required.
+
+## Manage ignored files
+
+ElyxBuilder keeps ignore lists in .elyxbuilder/config.yml. Prefer the CLI when updating them:
+
+
+```
+elyb add-ignore "MyPlugin/generated/*" --all
+elyb add-ignore "MyPlugin/res/preview.psd" --no-assets
+elyb add-ignore "MyPlugin/src/compat.py" --compile
+```
+
+
+The lists have different meanings:
+
+Target	Configuration key	Effect
+--all	ignoreAll	Exclude the path from every build
+--no-assets	optionalAssets	Exclude it only when building with --no-assets
+--compile	compilationIgnore	Keep matching Python files as source
+
+Remove an entry by its zero-based list index:
+
+
+```
+elyb del-ignore 0 --all
+```
+
+## Project statistics
+
+The CLI can inspect the project without building it:
+
+
+```
+elyb stats builds
+elyb stats lines
+elyb stats size
+elyb stats files
+```
+
+
+Add --all to include the complete plugin rather than only the default source scope. --additional DIR... can include other repository directories when used together with --all.
+
+## Official ElyxBuilder documentation
+
+For every flag and advanced feature, see the upstream documentation:
+
+ElyxBuilder documentation in Russian
+ElyxBuilder documentation in English
+ElyxBuilder releases
+
+Previous
+
+Quick Start
+
+Next
+
+Project Structure

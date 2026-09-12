@@ -1,0 +1,400 @@
+# File Utilities
+
+Work with Telegram directories, read and write files, and register custom file open handlers.
+
+The file_utils module has two main responsibilities:
+
+filesystem helpers for common plugin tasks
+FilesController, which lets you intercept file opening by extension and optionally provide custom file icons
+## Standard Directories
+
+These helpers return absolute paths to useful Telegram and plugin directories.
+
+
+```
+from file_utils import (
+    get_plugins_dir,
+    get_cache_dir,
+    get_files_dir,
+    get_images_dir,
+    get_videos_dir,
+    get_audios_dir,
+    get_documents_dir,
+)
+ 
+# The directory where plugin files are stored.
+plugins_path = get_plugins_dir()
+ 
+# Telegram cache and media directories.
+cache_path = get_cache_dir()
+files_path = get_files_dir()
+images_path = get_images_dir()
+videos_path = get_videos_dir()
+audios_path = get_audios_dir()
+documents_path = get_documents_dir()
+```
+
+
+Available directory helpers:
+
+get_plugins_dir()
+get_cache_dir()
+get_files_dir()
+get_images_dir()
+get_videos_dir()
+get_audios_dir()
+get_documents_dir()
+## Directory Operations
+### ensure_dir_exists(path: str)
+
+Creates the directory if it does not exist yet, including missing parent directories.
+
+
+```
+import os
+ 
+from file_utils import ensure_dir_exists, get_plugins_dir
+ 
+# Create a folder for your plugin data if it does not exist yet.
+data_dir = os.path.join(get_plugins_dir(), "my_plugin_data")
+ensure_dir_exists(data_dir)
+```
+
+### list_dir(...)
+
+Lists files and or directories with optional recursion and extension filtering.
+
+
+```
+from file_utils import get_cache_dir, get_images_dir, list_dir
+ 
+# Find image files in Telegram's image directory.
+image_files = list_dir(
+    path=get_images_dir(),
+    extensions=[".jpg", ".png"],
+)
+ 
+# Find all cache subdirectories recursively.
+cache_dirs = list_dir(
+    path=get_cache_dir(),
+    recursive=True,
+    include_files=False,
+    include_dirs=True,
+)
+```
+
+
+Parameters:
+
+recursive=False: walk child directories too
+include_files=True: include files in the result
+include_dirs=False: include directories in the result
+extensions=None: optional suffix filter such as [".json", ".txt"]
+## File Operations
+### write_file(path: str, content: str)
+
+Writes text to a file and overwrites any existing content.
+
+
+```
+import os
+ 
+from file_utils import ensure_dir_exists, get_plugins_dir, write_file
+ 
+# Prepare a plugin-specific folder before writing a file into it.
+data_dir = os.path.join(get_plugins_dir(), "my_plugin_data")
+ensure_dir_exists(data_dir)
+ 
+# Save a simple text file.
+write_file(
+    os.path.join(data_dir, "config.txt"),
+    "enabled=true",
+)
+```
+
+### read_file(path: str)
+
+Reads the whole file as text.
+
+On failure it returns None and logs the exception.
+
+
+```
+import os
+ 
+from file_utils import get_plugins_dir, read_file
+ 
+# Read the config file back.
+config_text = read_file(
+    os.path.join(get_plugins_dir(), "my_plugin_data", "config.txt")
+)
+ 
+if config_text is not None:
+    print(config_text)
+```
+
+### write_file_bytes(path: str, content: bytes)
+
+Writes binary data to a file.
+
+
+```
+import os
+ 
+from file_utils import ensure_dir_exists, get_plugins_dir, write_file_bytes
+ 
+# Save raw bytes, for example a downloaded asset.
+data_dir = os.path.join(get_plugins_dir(), "my_plugin_data")
+ensure_dir_exists(data_dir)
+ 
+write_file_bytes(
+    os.path.join(data_dir, "payload.bin"),
+    b"\x01\x02\x03",
+)
+```
+
+### read_file_bytes(path: str)
+
+Reads the whole file as bytes.
+
+On failure it returns None and logs the exception.
+
+
+```
+import os
+ 
+from file_utils import get_plugins_dir, read_file_bytes
+ 
+# Read binary data from disk.
+payload = read_file_bytes(
+    os.path.join(get_plugins_dir(), "my_plugin_data", "payload.bin")
+)
+ 
+if payload is not None:
+    print(len(payload))
+```
+
+### delete_file(path: str)
+
+Deletes a file and returns:
+
+True if the file was deleted
+False if the file did not exist or deletion failed
+
+```
+from file_utils import delete_file
+ 
+# Delete a temporary file if it exists.
+was_deleted = delete_file("/path/to/temp.txt")
+ 
+if was_deleted:
+    print("The file was removed.")
+```
+
+## FilesController
+
+FilesController lets you register handlers for specific file extensions.
+
+When a user opens a file of a registered type, your callback runs instead of the default open flow.
+
+Typical use cases:
+
+open custom file types
+handle plugin-specific archives
+launch a custom viewer
+provide a custom icon for a file extension
+
+Secrets are required to unregister
+
+FilesController.register(...) returns a secret string. Keep it somewhere safe if you want to remove the handler later with unregister(...).
+
+## FilesController.SUPPORT_ICONS
+
+FilesController.SUPPORT_ICONS is True when the current client version supports custom file icons.
+
+
+```
+from file_utils import FilesController
+ 
+# Only try to register custom icons if the client supports them.
+if FilesController.SUPPORT_ICONS:
+    print("Custom file icons are available.")
+```
+
+## FilesController.Place
+
+This enum describes where the file open request came from.
+
+Available values:
+
+FilesController.Place.UNKNOWN
+FilesController.Place.ChatActivity
+FilesController.Place.FilteredSearchView
+FilesController.Place.SharedMediaLayout
+FilesController.Place.SearchDownloadsContainer
+FilesController.Place.ChannelAdminLogActivity
+## FilesController.FileInfo
+
+Use FileInfo to describe a file extension handler.
+
+Fields:
+
+ext: str
+on_click: Callable[[FilesController.OnClickArgs], None]
+whitelist_places: list[FilesController.Place] = []
+blacklist_places: list[FilesController.Place] = []
+get_icon: Optional[Callable[[], Drawable]] = None
+
+Rules:
+
+you cannot use whitelist_places and blacklist_places together
+get_icon requires FilesController.SUPPORT_ICONS == True
+### FilesController.OnClickArgs
+
+This object is passed to your on_click callback.
+
+Fields:
+
+place
+file
+file_name
+message
+activity
+parent_fragment
+## Registering a File Handler
+
+Use FilesController.register(file_info) to install a handler.
+
+It returns a secret string which is required for unregister(...).
+
+
+```
+from file_utils import FilesController
+ 
+ 
+def on_zip_click(args: FilesController.OnClickArgs):
+    # You get the resolved file object and message context here.
+    print("Opened:", args.file_name)
+    print("From:", args.place)
+    print("Absolute path:", args.file.getAbsolutePath())
+ 
+ 
+# Register a handler for .zip files.
+secret = FilesController.register(
+    FilesController.FileInfo(
+        ext="zip",
+        on_click=on_zip_click,
+    )
+)
+```
+
+## Restricting a Handler to Certain Places
+
+Use whitelist_places or blacklist_places to control where the handler is active.
+
+
+```
+from file_utils import FilesController
+ 
+ 
+def on_txt_click(args: FilesController.OnClickArgs):
+    # This callback only runs inside chat screens.
+    print("Chat text file:", args.file_name)
+ 
+ 
+secret = FilesController.register(
+    FilesController.FileInfo(
+        ext="txt",
+        on_click=on_txt_click,
+        whitelist_places=[FilesController.Place.ChatActivity],
+    )
+)
+```
+
+
+```
+from file_utils import FilesController
+ 
+ 
+def on_pdf_click(args: FilesController.OnClickArgs):
+    # This callback runs everywhere except the downloads container.
+    print("PDF:", args.file_name)
+ 
+ 
+secret = FilesController.register(
+    FilesController.FileInfo(
+        ext="pdf",
+        on_click=on_pdf_click,
+        blacklist_places=[FilesController.Place.SearchDownloadsContainer],
+    )
+)
+```
+
+## Registering a Custom Icon
+
+If icon support is available, you can provide a Drawable factory with get_icon.
+
+
+```
+from file_utils import FilesController
+ 
+ 
+def make_zip_icon():
+    # Return an Android Drawable instance here.
+    return my_drawable
+ 
+ 
+def on_zip_click(args: FilesController.OnClickArgs):
+    # Handle the file normally when the user taps it.
+    print("ZIP opened:", args.file_name)
+ 
+ 
+if FilesController.SUPPORT_ICONS:
+    secret = FilesController.register(
+        FilesController.FileInfo(
+            ext="zip",
+            on_click=on_zip_click,
+            get_icon=make_zip_icon,
+        )
+    )
+```
+
+## Unregistering a File Handler
+
+Use the extension and the secret returned by register(...).
+
+
+```
+from file_utils import FilesController
+ 
+# Remove the handler that was previously registered.
+FilesController.unregister("zip", secret)
+```
+
+## Exceptions
+
+FilesController can raise these exceptions:
+
+FilesController.ExtensionAlreadyRegistered
+FilesController.ExtensionNotRegistered
+FilesController.SecretInvalid
+
+```
+from file_utils import FilesController
+ 
+try:
+    # Register the same extension twice to demonstrate error handling.
+    FilesController.register(FilesController.FileInfo(ext="zip", on_click=lambda args: None))
+    FilesController.register(FilesController.FileInfo(ext="zip", on_click=lambda args: None))
+except FilesController.ExtensionAlreadyRegistered as error:
+    print(error)
+```
+
+
+Previous
+
+Hook Utilities (Reflection)
+
+Next
+
+Intents

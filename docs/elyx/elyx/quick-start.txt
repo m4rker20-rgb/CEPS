@@ -1,0 +1,239 @@
+Elyx
+# Quick Start
+
+Create and install a complete Elyx plugin.
+
+# Build your first Elyx plugin
+
+This tutorial creates a small localized greeting plugin with multiple Python files, persistent settings, and an SVG asset.
+
+## Create with ElyxBuilder
+
+The fastest way to start is to let ElyxBuilder generate the initial project:
+
+
+```
+python -m pip install --upgrade ElyxBuilder
+mkdir elyx_hello
+cd elyx_hello
+elyb new
+```
+
+
+Complete the interactive wizard, then edit the generated metadata, source, locales, and resources. To generate a project without prompts:
+
+
+```
+elyb new -g -n "Elyx Hello" -a yourname
+```
+
+
+The following steps build the same concepts manually, which is useful for understanding refmap and the archive layout. If you started with ElyxBuilder, keep its generated paths and adapt the example code to <GeneratedName>/src/main.py.
+
+See the complete ElyxBuilder guide for project generation, compiled builds, watch mode, ignore lists, and links to the official CLI documentation.
+
+## 1. Create the project
+
+Create this directory tree:
+
+
+```
+elyx_hello/
+|-- refmap.yml
+|-- metainfo.yml
+|-- main.py
+|-- src/
+|   |-- __init__.py
+|   `-- greeting.py
+|-- assets/
+|   `-- wave.svg
+`-- strings/
+    |-- strings_en.yml
+    `-- strings_ru.yml
+```
+
+
+The directory name is not used as plugin metadata during installation, but keeping it equal to id makes local development easier.
+
+## 2. Map the files
+
+Create refmap.yml:
+
+
+```
+metainfo: metainfo.yml
+main: main.py
+assets: assets
+strings: strings
+```
+
+
+All paths are relative to the archive root.
+
+## 3. Add metadata
+
+Create metainfo.yml:
+
+
+```
+id: elyx_hello
+name: Elyx Hello
+description: "{plugin_description}"
+author: Your Name
+version: "1.0.0"
+icon: exteraPlugins/1
+app_version: ">=12.5.1"
+sdk_version: ">=1.4.5.3"
+```
+
+
+id and name are required. The {plugin_description} placeholder is read from the current locale.
+
+## 4. Add translations
+
+Create strings/strings_en.yml:
+
+
+```
+plugin_description: A small structured Elyx plugin
+loaded: Elyx Hello loaded
+greeting: "Hello, {name}!"
+settings_title: Greeting
+name_label: Name
+name_hint: Who should be greeted?
+```
+
+
+Create strings/strings_ru.yml:
+
+
+```
+plugin_description: Небольшой структурированный плагин Elyx
+loaded: Elyx Hello загружен
+greeting: "Привет, {name}!"
+settings_title: Приветствие
+name_label: Имя
+name_hint: Кого нужно поприветствовать?
+```
+
+
+English is the fallback locale, so always ship an en file.
+
+## 5. Split out a helper module
+
+Create src/__init__.py as an empty file, then add src/greeting.py:
+
+
+```
+from elyx import strings
+ 
+ 
+def build_greeting(name: str) -> str:
+    return strings("greeting", name=name)
+```
+
+
+Local modules are isolated inside this plugin. Another installed plugin can also have src/greeting.py without causing an import collision.
+
+## 6. Create the plugin class
+
+Create main.py:
+
+
+```
+from typing import Any, List
+ 
+from base_plugin import BasePlugin
+from elyx import assets, settings, strings
+from src.greeting import build_greeting
+from ui.settings import Header, Input, Text
+ 
+ 
+class ElyxHelloPlugin(BasePlugin):
+    def on_plugin_load(self):
+        self.log(strings("loaded"))
+ 
+        # Access by normalized stem, without the .svg extension.
+        wave_icon = assets.wave
+        self.log(f"Bundled icon: {wave_icon.path_str}")
+ 
+    def create_settings(self) -> List[Any]:
+        name = settings.get("name", "Alice")
+        return [
+            Header(text=strings("settings_title")),
+            Input(
+                key="name",
+                text=strings("name_label"),
+                subtext=strings("name_hint"),
+                default="Alice",
+                icon="msg_edit",
+            ),
+            Text(
+                text=build_greeting(name),
+                subtext="This row is generated from two project files.",
+                icon="msg_info",
+            ),
+        ]
+```
+
+
+There are no top-level __id__ or __name__ constants in main.py. Structured plugin metadata comes from metainfo.yml.
+
+## 7. Add an asset
+
+Save any valid SVG as assets/wave.svg. A minimal example is:
+
+
+```
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path fill="#4A90E2" d="M7 11V4a1 1 0 0 1 2 0v5h1V3a1 1 0 0 1 2 0v6h1V4a1 1 0 0 1 2 0v6h1V6a1 1 0 0 1 2 0v7c0 5-3 8-8 8s-7-3-7-7v-3a2 2 0 0 1 4 0Z"/>
+</svg>
+```
+
+## 8. Create an archive
+
+ZIP the contents of elyx_hello, not the outer directory. The first level inside the archive must contain refmap.yml.
+
+
+```
+correct:   refmap.yml
+incorrect: elyx_hello/refmap.yml
+```
+
+
+Rename the resulting ZIP file to elyx_hello.elyx or elyx_hello.eaf.
+
+If you use ElyxBuilder, run the command from the directory containing refmap.yml:
+
+
+```
+elyb build --ast --verbose --no-folder
+```
+
+
+See ElyxBuilder for compiled builds and watch mode, and Development and build for live reload.
+
+## 9. Install and enable it
+Send the archive to the device or open it from a file manager.
+Open it with exteraGram.
+Review the metadata and installation warnings.
+Install the plugin and enable it.
+Open the plugin settings page.
+
+The greeting row should follow the device language and the name saved in the input row.
+
+## What to read next
+Project structure
+ElyxBuilder
+Metadata
+Modules and imports
+Assets
+Localization
+
+Previous
+
+Elyx
+
+Next
+
+ElyxBuilder

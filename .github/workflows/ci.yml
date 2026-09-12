@@ -1,0 +1,19 @@
+name: CEPS checks
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run CEPS scenario tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          for test_file in CEPSbuilder/test_*.py; do
+            echo "Running ${test_file}"
+            python "${test_file}"
+          done
+      - run: python CEPSbuilder/cepsbuilder.py selftest

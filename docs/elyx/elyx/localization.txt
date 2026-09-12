@@ -1,0 +1,234 @@
+Elyx
+# Localization
+
+Keep translated strings outside Python and use locale fallback and formatting.
+
+# Localization
+
+Elyx loads translations from a file or directory declared in refmap.yml:
+
+
+```
+strings: plugin/locales
+```
+
+
+Recommended layout:
+
+
+```
+plugin/locales/
+|-- strings_en.yml
+|-- strings_ru.yml
+`-- strings_de.json
+```
+
+## Locale filenames
+
+The locale is the part after the final _ in the filename stem:
+
+
+```
+strings_en.yml   -> en
+strings_ru.json  -> ru
+ui_de.yaml       -> de
+strings.yml      -> en
+```
+
+
+Supported formats:
+
+.yaml
+.yml
+.json
+.py
+
+YAML or JSON is recommended. A Python localization file is executed while loading and only simple non-callable public values are collected.
+
+## Translation files
+
+strings_en.yml:
+
+
+```
+plugin_description: Adds useful greeting actions.
+title: Greetings
+hello: "Hello, {name}!"
+downloaded: "Downloaded {count} files"
+file_forms:
+  - file
+  - files
+  - files
+```
+
+
+strings_ru.yml:
+
+
+```
+plugin_description: Добавляет полезные действия с приветствиями.
+title: Приветствия
+hello: "Привет, {name}!"
+downloaded: "Загружено файлов: {count}"
+file_forms:
+  - файл
+  - файла
+  - файлов
+```
+
+
+Values may be strings, numbers, lists, or dictionaries.
+
+## Read strings
+
+Import the plugin-bound object:
+
+
+```
+from elyx import strings
+```
+
+
+All these forms are supported:
+
+
+```
+title = strings["title"]
+title = strings.title
+title = strings.get("title")
+title = strings("title")
+```
+
+
+Calling the object also formats a string:
+
+
+```
+message = strings("hello", name="Alice")
+downloaded = strings("downloaded", count=5)
+```
+
+
+Positional placeholders work too:
+
+
+```
+coordinates: "Position: {}, {}"
+```
+
+
+```
+text = strings("coordinates", 10, 20)
+```
+
+## Fallback order
+
+For a regular lookup Elyx uses:
+
+the selected plugin locale
+English (en)
+the requested key itself
+
+```
+label = strings("missing_key")
+# "missing_key" when no locale defines it
+```
+
+
+Provide an explicit default:
+
+
+```
+label = strings.get("optional_label", "Fallback label")
+label = strings("optional_label", default="Fallback label")
+```
+
+
+Force a locale:
+
+
+```
+russian_title = strings.get_with_locale("title", locale="ru")
+english_title = strings("title", locale="en")
+```
+
+
+The selected locale comes from Elyx's language setting. When that setting is empty, the Android system locale is used.
+
+## Plural forms
+
+Strings.pluralize uses three Slavic-style forms:
+
+
+```
+file_forms:
+  - file
+  - files
+  - files
+```
+
+
+```
+text = strings.pluralize(21, "file_forms")
+# "21 file"
+```
+
+
+For languages with different plural rules, select the form in plugin code or store complete formatted phrases. The current helper is not a full CLDR pluralization engine.
+
+## Localize metadata
+
+Place placeholders in metainfo.yml:
+
+
+```
+description: "{plugin_description}"
+```
+
+
+Define the key in every locale:
+
+
+```
+plugin_description: A localized plugin description.
+```
+
+
+Description placeholders are resolved when the plugin is loaded. They use the same current-locale-then-English fallback.
+
+## Use Strings directly
+
+The public class is useful for an independent in-memory catalog:
+
+
+```
+from elyx import Strings
+ 
+labels = Strings({
+    "en": {"save": "Save"},
+    "ru": {"save": "Сохранить"},
+})
+ 
+button.setText(labels("save"))
+```
+
+
+Most plugins should use the environment-provided strings, because it already contains the files declared by the project.
+
+## Best practices
+always include English as the fallback locale
+keep stable semantic keys such as settings_privacy_title
+do not concatenate translated fragments to build a sentence
+pass values through {named} placeholders
+keep Markdown links and formatting consistent across translations
+use YAML quotes around text containing :, {}, or leading special characters
+
+If from elyx import strings fails, the localization path is missing, empty, or invalid. See Troubleshooting.
+
+Previous
+
+Assets
+
+Next
+
+Settings Storage

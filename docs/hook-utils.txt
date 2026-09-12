@@ -1,0 +1,121 @@
+# Hook Utilities (Reflection)
+
+A set of utility functions for performing Java reflection, allowing you to find classes and access or modify private fields and methods.
+
+The hook_utils.py module provides essential tools for interacting with the underlying Java code of the application via reflection. This is particularly useful for advanced Xposed hooking when you need to access non-public members of a class.
+
+Use with Caution
+
+Reflection is a powerful but fragile technique. It can break if the underlying application code changes. Always include error handling (e.g., try-except blocks) when using these functions and check for None return values.
+
+## find_class(class_name: str)
+
+Safely finds and returns a Java class object by its fully qualified name.
+
+class_name: The full name of the class, including the package (e.g., "org.telegram.ui.ActionBar.ActionBar").
+Returns: A Java Class object if found, otherwise None.
+### Example
+
+```
+from hook_utils import find_class
+ 
+# Find the ActionBar class
+ActionBarClass = find_class("org.telegram.ui.ActionBar.ActionBar")
+ 
+if ActionBarClass:
+    self.log(f"Successfully found class: {ActionBarClass.getName()}")
+else:
+    self.log("Could not find ActionBar class.")
+```
+
+## get_private_field(obj: JavaObject, field_name: str)
+
+Accesses and retrieves the value of a private (or public) instance field from a given object. It searches the entire class hierarchy.
+
+obj: The Java object instance from which to get the field.
+field_name: The name of the field to access.
+Returns: The value of the field if found, otherwise None.
+### Example
+
+Assuming chatActivity is an instance of org.telegram.ui.ChatActivity.
+
+
+```
+from hook_utils import get_private_field
+ 
+# Get the value of the private 'chatListView' field from a ChatActivity instance
+chat_list_view = get_private_field(chatActivity, "chatListView")
+ 
+if chat_list_view:
+    self.log("Successfully accessed chatListView.")
+```
+
+## set_private_field(obj: JavaObject, field_name: str, new_value: Any)
+
+Modifies the value of a private (or public) instance field on a given object.
+
+obj: The Java object instance to modify.
+field_name: The name of the field to modify.
+new_value: The new value to assign to the field.
+Returns: True if the field was set successfully, False otherwise.
+### Example
+
+```
+from hook_utils import set_private_field
+ 
+# Change the value of a 'verified' field on a user object
+user_object = ...
+success = set_private_field(user_object, "verified", True)
+ 
+if success:
+    self.log("User is now verified!")
+```
+
+## get_static_private_field(clazz: JavaClass, field_name: str)
+
+Accesses and retrieves the value of a static private (or public) field from a given class.
+
+clazz: The Java Class object.
+field_name: The name of the static field.
+Returns: The value of the field if found, otherwise None.
+### Example
+
+```
+from hook_utils import find_class, get_static_private_field
+ 
+# Get the static 'configLoaded' field from ExteraConfig
+ExteraConfigClass = find_class("com.exteragram.messenger.ExteraConfig")
+if ExteraConfigClass:
+    config_loaded = get_static_private_field(ExteraConfigClass, "configLoaded")
+    self.log(f"Config loaded: {config_loaded}")
+```
+
+## set_static_private_field(clazz: JavaClass, field_name: str, new_value: Any)
+
+Modifies the value of a static private (or public) field on a given class.
+
+clazz: The Java Class object.
+field_name: The name of the static field to modify.
+new_value: The new value to assign.
+Returns: True if successful, False otherwise.
+### Example
+
+```
+from hook_utils import find_class, set_static_private_field
+ 
+# Modify a static configuration flag
+BuildVarsClass = find_class("org.telegram.messenger.BuildVars")
+if BuildVarsClass:
+    success = set_static_private_field(BuildVarsClass, "DEBUG_VERSION", True)
+    if success:
+        self.log("DEBUG_VERSION has been enabled.")
+```
+
+
+Previous
+
+Text Formatting
+
+Next
+
+File Utilities

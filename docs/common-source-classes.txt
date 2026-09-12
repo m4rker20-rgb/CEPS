@@ -1,0 +1,108 @@
+# Common Telegram Classes
+
+Reference for frequently used Telegram source classes and their locations for plugin development.
+
+## Links to commonly used Telegram classes
+
+It is recommended to have a local copy of Telegram sources, opened in Android Studio.
+
+### LaunchActivity
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/LaunchActivity.java
+
+That's where app initialization happens. Custom links are handled here as well.
+
+### ProfileActivity
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/ProfileActivity.java
+
+User and channel profile fragment.
+
+### ChatActivity
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/ChatActivity.java
+
+Chat rendering and functionality.
+
+### MessageObject
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/messenger/MessageObject.java
+
+Wrapper for TLRPC.Message.
+
+### ChatMessageCell
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/Cells/ChatMessageCell.java
+
+Handles message rendering.
+
+### AndroidUtilities
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/messenger/AndroidUtilities.java
+
+Contains a lot of useful utilities.
+
+### MessagesController
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/messenger/MessagesController.java
+
+Contains all methods related to managing app state and Telegram requests.
+
+### MessagesStorage
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/messenger/MessagesStorage.java
+
+Manages local database state. You may use database field to execute custom SQLite queries.
+
+### SendMessagesHelper
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/messenger/SendMessagesHelper.java
+
+Contains methods for sending all kind of messages, including files.
+
+### BulletinFactory
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/Components/BulletinFactory.java
+
+Bulletins are small notification messages displayed on the bottom.
+
+### AlertDialog
+
+View on GitHub
+
+Path: TMessagesProj/src/main/java/org/telegram/ui/ActionBar/AlertDialog.java
+
+Alert dialogs are shown on top of current fragment. They support custom handlers on action buttons.
+
+### TLRPC (all Telegram request models)
+
+Path: TMessagesProj/src/main/java/org/telegram/tgnet
+
+TLRPC.java
+Additional models
+
+Human-readable list: https://corefork.telegram.org/schema (not always up-to-date)
+
+Previous
+
+Available Libraries

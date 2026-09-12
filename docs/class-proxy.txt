@@ -1,0 +1,1443 @@
+# Class Proxy
+
+Create Java subclasses and dynamic proxy classes from Python.
+
+# Class Proxy
+
+The class proxy API allows a plugin to create a real Java class at runtime and implement it in Python.
+
+This is useful when a Java API expects:
+
+a subclass of an existing Java class
+an implementation which overrides parent methods
+extra methods declared directly on the generated Java class
+Java fields stored on the generated object
+
+The proxy system is built on top of DexMaker, so the result is an actual Java class which can be passed anywhere the app expects that type.
+
+new_instance() returns a Python peer object, not the raw Java instance. Use .java when an API explicitly requires the generated Java object itself.
+
+## Recommended API
+
+The recommended API is the managed DSL from extera_utils.classes.
+
+
+```
+from extera_utils.classes import (
+    Base,
+    java_subclass,
+    joverride,
+    joverload,
+    jmethod,
+    jMVELmethod,
+    jMVELoverride,
+    jclassbuilder,
+    jfield,
+    jgetmethod,
+    jsetmethod,
+    jconstructor,
+    jpreconstructor,
+)
+```
+
+
+Main pieces:
+
+Base: base Python class for managed Java subclasses
+@java_subclass(JavaClass, Interface1, Interface2, ..., methods=..., constructors=..., custom_name=...): binds your Python class to a Java base class and optional Java interfaces
+@joverride(...): overrides an existing Java method
+@joverload(name, arg_types): overload-friendly alias for @joverride
+@jmethod(...): adds a new method directly to the generated Java class
+jMVELmethod(...): adds a Java method backed by MVEL instead of Python
+jMVELoverride(...): overrides a parent Java method with MVEL code
+@jclassbuilder(): lets you modify DexMaker before the class is finalized and loaded
+jfield(...): adds a Java field to the generated class
+jgetmethod(...) / jsetmethod(...): generate Java-only getter/setter methods for a field
+@jconstructor(...): runs Python code after the Java constructor has finished
+@jpreconstructor(...): modifies constructor arguments before calling the Java parent constructor
+
+Useful aliases also exist:
+
+jmvelmethod / jMVELmethod
+jmveloverride / jMVELoverride
+joverride, joverload, jmethod, jfield, jconstructor, jpreconstructor
+jgetmethod, jsetmethod, jclassbuilder
+## Quick Start
+
+```
+from extera_utils.classes import Base, java_subclass, joverload, jfield
+from java.util import ArrayList
+ 
+ 
+@java_subclass(ArrayList)
+class CountingList(Base):
+    added_count = jfield("int", default=0)
+ 
+    @joverload("add", ["java.lang.Object"])
+    def add_item(self, value):
+        self.added_count += 1
+        return super().add_item(value)
+ 
+ 
+items = CountingList.new_instance()
+items.add("Hello")
+items.add("world")
+```
+
+
+What happens here:
+
+CountingList becomes a generated Java subclass of java.util.ArrayList
+added_count becomes a real Java field on that class
+add(Object) is overridden in Java and routed into Python
+super().add_item(...) calls the original parent Java implementation
+
+Because ArrayList.add is overloaded, the example uses @joverload(...). For overloaded Java methods, prefer explicit signatures instead of bare @joverride().
+
+## Creating a Java Subclass
+
+Use @java_subclass for the most readable syntax:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    ...
+```
+
+
+If the generated Java class must also implement interfaces, pass them after the base class:
+
+
+```
+@java_subclass(FrameLayout, CustomDelegate1, CustomDelegate2)
+class MyCell(Base):
+    ...
+```
+
+
+This produces a generated Java class equivalent to:
+
+
+```
+class GeneratedProxy extends FrameLayout implements CustomDelegate1, CustomDelegate2
+```
+
+### Custom generated class name
+
+App version
+
+Work only in app, which version code >= 66690
+
+You can control the middle part of the generated Java proxy class name with custom_name=....
+
+
+```
+@java_subclass(Object, custom_name="DialogCell")
+class Test(Base):
+    ...
+```
+
+
+That generates a class name in this shape:
+
+
+```
+Proxy_Object_DialogCell_<hashcode>_<randomnum>
+```
+
+
+If custom_name is not provided, the proxy system uses the Python class name automatically:
+
+
+```
+@java_subclass(Object)
+class Test(Base):
+    ...
+```
+
+
+This becomes:
+
+
+```
+Proxy_Object_Test_<number>_<number>
+```
+
+
+The same option is available on bind(...):
+
+
+```
+MySubclass.bind(SomeJavaClass, custom_name="SettingsRow")
+```
+
+
+Names are sanitized before generation, so unsupported characters are replaced with _.
+
+Generated proxy classes are also loaded through a shared generated-class loader chain, so a proxy created later can reference earlier generated proxy classes when needed.
+
+This is still not a substitute for a stable API type. If possible, prefer referencing another proxy through an interface or a common base class instead of depending on the exact generated class.
+
+You can also bind after the class definition:
+
+
+```
+class MySubclass(Base):
+    ...
+ 
+ 
+MySubclass.bind(SomeJavaClass)
+```
+
+
+And bind(...) supports the same interface list:
+
+
+```
+MySubclass.bind(FrameLayout, CustomDelegate1, CustomDelegate2)
+```
+
+
+To get the generated Java class:
+
+
+```
+proxy_java_class = MySubclass.java_class()
+```
+
+
+To create an instance:
+
+
+```
+instance = MySubclass.new_instance()
+instance2 = MySubclass.new_instance("text", 123)  # provide java-constructor args
+```
+
+
+instance is a Python peer of MySubclass. If you need the raw Java object:
+
+
+```
+java_instance = instance.java
+java_instance2 = MySubclass.new_java_instance("text", 123)
+```
+
+
+If you want to pass separate arguments into the Python __init__ method, use init_args:
+
+
+```
+instance = MySubclass.new_instance("java ctor value", init_args=["python init value"])
+```
+
+
+In this case:
+
+"java ctor value" is used for Java constructor resolution
+["python init value"] is passed to Python __init__
+
+If you already have a raw Java instance of the generated class and want to recover its Python peer, use from_java(...):
+
+
+```
+existing_java = MySubclass.new_java_instance("text")
+peer = MySubclass.from_java(existing_java)
+```
+
+
+This is useful when:
+
+some Java API created or stored the proxy instance for you
+you received the generated object back through another callback
+you want to continue working with the Python peer instead of the raw Java object
+## Overriding Methods
+### Simple Override
+
+If the Java method name is the same as the Python method name:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverride()
+    def onClick(self, view):
+        print("Clicked")
+```
+
+### Override With Another Python Name
+
+If the Java method name is not convenient in Python, pass it explicitly:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverride("equals")
+    def equals_(self, a, b):
+        return a == b
+```
+
+
+This is useful for names such as equals, hashCode, or when you want several Python handlers for overloaded methods.
+
+## Overloaded Methods
+
+When a Java class has several methods with the same name, use the overload-aware decorators.
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverload("setValue", ["int"])
+    def set_value_int(self, value):
+        print("int overload", value)
+ 
+    @joverload("setValue", ["java.lang.String"])
+    def set_value_text(self, value):
+        print("string overload", value)
+```
+
+
+You can write the same thing with joverride:
+
+
+```
+@joverride("setValue", ["int"])
+def set_value_int(self, value):
+    ...
+```
+
+### Supported Type Formats
+
+Argument and return types may be specified as:
+
+primitive names like "int", "boolean", "long"
+fully-qualified class names like "java.lang.String"
+Java classes returned by jclass(...)
+Java primitive type objects
+
+Example:
+
+
+```
+from java import jclass
+ 
+View = jclass("android.view.View")
+ 
+@joverload("setView", [View])
+def set_view(self, view):
+    ...
+```
+
+## Calling Parent Methods With super()
+
+For overridden methods, super() works like a normal Python method call:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverride()
+    def onClick(self, view):
+        print("Before parent")
+        result = super().onClick(view)
+        print("After parent")
+        return result
+```
+
+
+For overloaded methods, call the Python method name you defined:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverload("setValue", ["int"])
+    def set_value_int(self, value):
+        return super().set_value_int(value)
+```
+
+## Adding New Java Methods
+
+Use @jmethod to declare a method which does not exist on the parent Java class.
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @jmethod("debugLabel", "java.lang.String", ["int"])
+    def build_debug_label(self, value):
+        return f"value={value}"
+```
+
+
+This creates a real Java method named debugLabel(int) on the generated class.
+
+### jmethod Signatures
+
+These forms are supported:
+
+
+```
+@jmethod("java.lang.String", ["int"])
+def my_method(self, value):
+    ...
+ 
+@jmethod("debugLabel", "java.lang.String", ["int"])
+def build_debug_label(self, value):
+    ...
+```
+
+
+If the return type and argument types are not passed explicitly, jmethod can infer them from Python annotations:
+
+
+```
+@jmethod()
+def build_debug_label(self, value: "int") -> "java.lang.String":
+    return f"value={value}"
+```
+
+
+Explicit types are still recommended when the Java signature matters a lot.
+
+## Adding MVEL Methods
+
+If a method is called very often and the logic is simple enough to keep on the Java side, you can generate a method whose body is executed by MVEL instead of calling Python.
+
+
+```
+from extera_utils.classes import Base, java_subclass, jMVELmethod
+ 
+ 
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    debug_label = jMVELmethod(
+        return_type="java.lang.String",
+        arguments=[("prefix", "java.lang.String"), ("value", "int")],
+        code="""
+            return prefix + ": value=" + value + ", class=" + java.getClass().getSimpleName();
+        """,
+    )
+```
+
+
+This creates a real Java method named debug_label(String, int) on the generated class, but its implementation runs through compiled MVEL.
+
+### Overriding With MVEL
+
+For parent methods, use jMVELoverride(...):
+
+
+```
+from extera_utils.classes import Base, java_subclass, jMVELoverride
+ 
+ 
+@java_subclass(SomeFactoryClass)
+class OptimizedFactory(Base):
+    isClickable = jMVELoverride(
+        arguments=[],
+        code="return factory_is_clickable;",
+    )
+```
+
+
+If the parent method is overloaded, pass explicit argument types just like @joverload(...):
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    add = jMVELoverride(
+        arguments=[("value", "java.lang.Object")],
+        code="""
+            add_calls = add_calls + 1;
+            return SUPER_add(value);
+        """,
+    )
+```
+
+### MVEL Context
+
+Inside MVEL:
+
+the root object is the generated Java instance, so Java fields and methods can be accessed directly
+java: the same generated Java instance
+python / py / self: the attached Python peer object
+args: Object[] with all method arguments
+argc: number of arguments
+arg0, arg1, ...: positional arguments
+named arguments from arguments=[("name", "type"), ...]
+
+That means all of these are valid:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    describe = jMVELmethod(
+        return_type="java.lang.String",
+        arguments=[("value", "int")],
+        code="""
+            return "value=" + value + ", class=" + java.getClass().getSimpleName();
+        """,
+    )
+```
+
+
+For override methods, the generated SUPER_<methodName>(...) bridge is also available:
+
+
+```
+@java_subclass(SomeViewClass)
+class MyView(Base):
+    onMeasure = jMVELoverride(
+        arguments=[("widthMeasureSpec", "int"), ("heightMeasureSpec", "int")],
+        code="""
+            SUPER_onMeasure(
+                android.view.View$MeasureSpec.makeMeasureSpec(
+                    android.view.View$MeasureSpec.getSize(widthMeasureSpec),
+                    android.view.View$MeasureSpec.EXACTLY
+                ),
+                android.view.View$MeasureSpec.makeMeasureSpec(
+                    org.telegram.messenger.AndroidUtilities.dp(68),
+                    android.view.View$MeasureSpec.EXACTLY
+                )
+            );
+            return null;
+        """,
+    )
+```
+
+
+That pattern is useful for small hot-path UI overrides where the method body is simple but called very often.
+
+### When To Use MVEL
+Use jfield(..., methods=[jgetmethod(...), jsetmethod(...)]) for pure field getter/setter hot paths. That is still the fastest option.
+Use jMVELmethod(...) or jMVELoverride(...) when the method needs a bit of logic, but you still want to avoid calling into Python every time.
+Keep MVEL bodies small and predictable. If the logic needs Python objects, complex state, or heavy control flow, regular Python overrides are usually easier to maintain.
+## Adding Java Fields
+
+Use jfield to declare fields on the generated Java class.
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    counter = jfield("int", default=0)
+    title = jfield("java.lang.String", default="Hello")
+```
+
+
+You can read and write them like normal Python attributes:
+
+
+```
+self.counter += 1
+self.title = "Updated"
+```
+
+
+Notes:
+
+the field is generated on the Java class
+the value is available through the Python peer object as a normal attribute
+assigning to the field updates the attached Java instance when possible
+### Java-only Field Accessors
+
+If a method is called very often and it only needs to return or update a field value, you can generate a Java-only getter or setter directly from jfield(...).
+
+
+```
+from extera_utils.classes import jfield, jgetmethod, jsetmethod
+ 
+ 
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    shadow_value = jfield(
+        "boolean",
+        default=False,
+        methods=[
+            jgetmethod("isShadow"),
+            jsetmethod("setShadow"),
+        ],
+    )
+```
+
+
+This generates:
+
+a Java field named shadow_value
+a Java method isShadow() which directly returns that field
+a Java method setShadow(boolean) which directly writes that field
+
+These accessor methods do not call into Python at all, so they are useful for very hot paths such as repeated UI queries.
+
+This is especially useful when you want to override a parent getter with a static value:
+
+
+```
+@java_subclass(SomeFactoryClass)
+class OptimizedFactory(Base):
+    is_shadow_value = jfield(
+        "boolean",
+        default=False,
+        methods=[jgetmethod("isShadow")],
+    )
+```
+
+
+If SomeFactoryClass already has isShadow(), the generated Java method overrides it in the proxy class and returns the field immediately.
+
+Because generated proxy classes now load through a shared generated-class loader chain, a proxy created later can also reference a proxy class created earlier as a field or method type if you truly need that.
+
+Even so, a stable shared type such as an interface or common base class is still the safer design for public APIs.
+
+## Constructors
+
+Constructor hooks are split into two stages:
+
+@jpreconstructor(...): before the parent Java constructor call
+@jconstructor(...): after the Java object has already been created
+### Pre-constructor
+
+Use this when you need to change constructor arguments:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @jpreconstructor(["java.lang.String"])
+    def normalize_text(cls, text):
+        return [text.strip()]
+```
+
+
+The function should return:
+
+None to keep original arguments
+a list or tuple with replacement arguments
+a single value for a one-argument constructor
+### Post-constructor
+
+Use this when the Java object already exists and you want to initialize Python state:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    initialized = jfield("boolean", default=False)
+ 
+    @jconstructor(["java.lang.String"])
+    def init_from_text(self, text):
+        self.initialized = True
+        self.last_text = text
+```
+
+### __init__ and on_post_init
+
+The managed DSL also supports generic initialization:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    def __init__(self, text):
+        self.python_only_state = text
+ 
+    def on_post_init(self, text):
+        print("Java object is ready:", self.java)
+```
+
+
+Initialization order is:
+
+@jpreconstructor(...) if matched
+Java parent constructor
+Python __init__(...)
+matched @jconstructor(...)
+on_post_init(...)
+
+If you only need a single generic hook, __init__ is usually enough.
+
+If you need different logic for overloaded constructors, use @jconstructor(...).
+
+### Separate Python init arguments
+
+By default, Python __init__ receives the same arguments as the Java constructor.
+
+If you need different Python-only initialization data, pass it explicitly through new_instance(..., init_args=[...]):
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    def __init__(self, title, debug_mode):
+        self.title = title
+        self.debug_mode = debug_mode
+ 
+ 
+instance = MySubclass.new_instance(
+    "java constructor text",
+    init_args=["Python title", True],
+)
+```
+
+
+This is useful when the Java constructor signature and the Python peer state do not match exactly.
+
+## Accessing the Attached Java Instance
+
+Inside a managed subclass:
+
+self.java is the attached Java instance
+self.this is an alias to self.java
+
+Example:
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverride()
+    def onAttached(self):
+        print(self.java.getClass().getName())
+```
+
+
+If Python cannot find an attribute on the peer object, it falls back to the Java instance:
+
+
+```
+self.getContext()
+self.hashCode()
+```
+
+
+This means most Java calls work directly on the peer object:
+
+
+```
+instance = MySubclass.new_instance()
+instance.hashCode()
+instance.getClass().getName()
+```
+
+
+But if a Java API checks the exact runtime type and expects a real Java object parameter, pass instance.java.
+
+## Wrapping Existing Java Instances
+
+Sometimes an API hands your generated object back to you as a plain Java object. In that case, use from_java(...) to recover the Python peer instead of manually copying state around.
+
+
+```
+@java_subclass(SomeJavaClass)
+class MySubclass(Base):
+    @joverride()
+    def onAttached(self):
+        print("Attached!", self.java)
+ 
+ 
+peer = MySubclass.new_instance()
+raw_java = peer.java
+ 
+# Later, possibly in another callback:
+same_peer = MySubclass.from_java(raw_java)
+same_peer.onAttached()
+```
+
+
+If the peer already exists, from_java(...) returns the same Python object. If it does not, the proxy system creates and binds it.
+
+## Passing Python Objects Through Java
+
+The low-level helper PyObj is available when you need to carry an arbitrary Python object through Java-facing APIs.
+
+
+```
+from extera_utils.classes import PyObj
+ 
+ 
+payload = PyObj.create({"debug": True, "label": "factory args"})
+```
+
+
+PyObj is mainly useful when:
+
+a Java API needs to carry opaque plugin-owned state
+you are building low-level adapters or factory layers
+you want to place Python data into a Java field or something like UItem.object
+
+For normal subclassing and method overrides, you usually do not need PyObj directly.
+
+## Built-in Java Object Modifiers
+
+The user-friendly behavior is now available directly in the Externagram Chaquopy fork, so you can use it for any Java object or Java class without additional wrappers or imports:
+
+
+```
+obj.JA.privateField
+obj.JIR.method1().method2()
+SomeJavaClass.JGS.someStaticProperty
+```
+
+### What is available
+
+There are two groups of modifiers.
+
+Persistent modifiers:
+
+JUseGetterAndSetter / JGS
+JNotUseGetterAndSetter / JNGS
+JAccessAll / JA
+JNotAccessAll / JNA
+
+These change the behavior of the current Java object or Java class itself.
+
+Scoped chain modifiers:
+
+JIgnoreResult / JIR
+JNotIgnoreResult / JNIR
+JSafe / JS
+JNotSafe / JNS
+
+These only affect the current access chain and do not permanently mutate the object.
+
+### Default behavior
+
+By default:
+
+getter/setter mode is enabled
+access-all mode is disabled
+safe mode is disabled
+ignore-result mode is disabled
+
+That means regular access tries normal Chaquopy behavior first, but field-like names also prefer JavaBean-style accessors when available.
+
+
+```
+# If getTitle() exists, this uses it by default.
+title = obj.title
+ 
+# If setTitle(...) exists, this uses it by default.
+obj.title = "Updated"
+```
+
+
+This getter/setter preference applies to:
+
+Java object instances
+Java classes when you work with static getters/setters
+### Getter/Setter mode
+
+Use JNGS when you want raw field-style access instead of getX() / setX(...).
+
+
+```
+# Disable getter/setter mode only for this object.
+obj.JNGS
+ 
+# Now this reads the field path directly instead of trying getResult().
+value = obj.result
+ 
+# Turn getter/setter mode back on.
+obj.JGS
+```
+
+
+The same works on classes:
+
+
+```
+# Static getter/setter mode on the class itself.
+SomeJavaClass.JGS
+caption = SomeJavaClass.caption
+SomeJavaClass.caption = "New value"
+```
+
+
+Notes:
+
+getter/setter mode is intended for field-like names such as title, result, messageObject
+names which already look like methods, such as getClass() or isInterface(), stay method-like and are not remapped again
+### AccessAll mode
+
+Use JA to allow access to non-public declared members.
+
+
+```
+# Without JA, private access raises an error.
+obj.JA
+ 
+# Private/protected/package-private declared members become accessible.
+secret = obj.secretField
+obj.secretMethod()
+ 
+# Turn the mode off again on the same object.
+obj.JNA
+```
+
+
+This also works on Java classes for static members:
+
+
+```
+SomeJavaClass.JA
+ 
+# Access a private static field or method.
+token = SomeJavaClass.secretToken
+SomeJavaClass.rebuildCache()
+ 
+SomeJavaClass.JNA
+```
+
+
+Internally, the Chaquopy fork caches declared methods, fields, and nested classes per Java class, so JA does not re-scan reflection metadata every time.
+
+### IgnoreResult mode
+
+Use JIR when you want a method chain to keep returning the original receiver instead of the Java return value.
+
+
+```
+# All three calls are made on obj.
+obj.JIR.setTitle("Hello").requestLayout().invalidate()
+ 
+# Normal behavior resumes outside that chain.
+result = obj.methodThatReturnsSomething()
+```
+
+
+You can turn it off in the same chain with JNIR:
+
+
+```
+# The first three calls return the original object.
+# method4() then returns its real Java result.
+value = obj.JIR.method1().method2().method3().JNIR.method4()
+```
+
+### Safe mode
+
+Use JS when you want safe optional-style chaining.
+
+If some attribute or method is missing anywhere in the chain, the result becomes JNone instead of raising immediately.
+
+
+```
+value = obj.JS.someAttr.someOtherAttr.someMethod()
+```
+
+
+Safe mode also propagates to Java objects returned during the chain, so you do not need to write .JS again after every step.
+
+It also treats None as safe-empty and converts it to JNone while safe mode is active.
+
+
+```
+# If getInfo() returns None, the chain still stays safe.
+value = obj.JS.info.details.title
+ 
+# If any step is missing, you get JNone instead of an exception.
+value = obj.JS.missing.anything.call()
+```
+
+
+You can disable it mid-chain with JNS.
+
+### JNone
+
+JNone is the sentinel returned by safe chains when access fails or a safe-chain step returns None.
+
+Properties:
+
+falsy in boolean context
+keeps swallowing attribute access
+keeps swallowing calls
+can be compared by identity when needed
+
+```
+from java import JNone
+ 
+result = obj.JS.maybeNull.value
+ 
+if result is JNone:
+    print("No value")
+```
+
+### Object-level and class-level examples
+
+```
+# Instance-level flags persist on this object.
+obj.JNGS
+obj.JA
+ 
+# Direct field access, including non-public declared fields.
+raw = obj.result
+secret = obj.secretField
+ 
+# Restore the defaults for this object.
+obj.JNA
+obj.JGS
+```
+
+
+```
+# Class-level flags persist on this Java class.
+SomeJavaClass.JGS
+SomeJavaClass.JA
+ 
+# Static getter/setter or static field access.
+current = SomeJavaClass.currentItem
+SomeJavaClass.currentItem = item
+hidden = SomeJavaClass.hiddenCache
+ 
+SomeJavaClass.JNA
+```
+
+
+```
+# Chain-scoped modifiers do not persist.
+res = obj.JIR.prepare().bind().show().JNIR.getResult()
+ 
+# Safe chaining over Java objects and None.
+title = obj.JS.info.card.title
+```
+
+### Practical behavior summary
+JGS / JNGS and JA / JNA are persistent for the current object or Java class
+JIR / JNIR and JS / JNS only affect the current chain
+dir(obj) and dir(SomeJavaClass) expose the modifier names
+JA works with fields, methods, and nested classes/interfaces declared on the Java class
+JSafe propagates through returned Java objects automatically
+JSafe converts None to JNone inside the safe chain
+### Limitations
+
+This is still convenience access, not a full replacement for manual signature-driven reflection.
+
+Keep in mind:
+
+if exact overload control matters, explicit Java reflection is still safer
+non-public lookup is based on declared members and class metadata from the Chaquopy fork
+getter/setter preference is only for field-like names, not for method-like names such as getX
+
+If you need precise overload selection, use regular reflection:
+
+
+```
+clazz = obj.getClass()
+method = clazz.getDeclaredMethod("setValue", jint)
+method.setAccessible(True)
+method.invoke(obj, 5)
+ 
+# or
+obj.JA  # enable Access All mode
+obj.value = 5  # use setValue(5)
+```
+
+## Full Example
+
+```
+from extera_utils.classes import (
+    Base,
+    java_subclass,
+    joverride,
+    joverload,
+    jmethod,
+    jfield,
+    jconstructor,
+    jpreconstructor,
+)
+ 
+ 
+@java_subclass(SomeJavaClass)
+class DemoProxy(Base):
+    counter = jfield("int", default=0)
+    title = jfield("java.lang.String", default="Demo")
+ 
+    @jpreconstructor(["java.lang.String", "int"])
+    def normalize_args(cls, title, counter):
+        return [title.strip(), max(0, counter)]
+ 
+    def __init__(self, title, counter):
+        self.python_state = {"created_with": title}
+ 
+    @jconstructor(["java.lang.String", "int"])
+    def init_fields(self, title, counter):
+        self.title = title
+        self.counter = counter
+ 
+    @joverride()
+    def onAttached(self):
+        self.counter += 1
+        return super().onAttached()
+ 
+    @joverload("setValue", ["int"])
+    def set_value_int(self, value):
+        self.counter = value
+        return super().set_value_int(value)
+ 
+    @joverload("setValue", ["java.lang.String"])
+    def set_value_text(self, value):
+        self.title = value
+ 
+    @jmethod("debugLabel", "java.lang.String", ["int"])
+    def build_debug_label(self, extra):
+        return f"{self.title} ({self.counter}, extra={extra})"
+ 
+ 
+instance = DemoProxy.new_instance("  Example  ", 5)
+java_instance = instance.java
+```
+
+## Full Smoke Test Example
+
+This example is designed to verify almost the entire class proxy API in one place:
+
+subclass generation
+Java field creation
+constructor preprocessing
+post-constructor hooks
+overloaded method overrides
+super() calls
+custom Java methods
+access to the attached Java instance
+
+It uses java.util.ArrayList, because it is a normal subclassable Java class with overloaded methods and constructors.
+
+
+```
+from base_plugin import BasePlugin
+from extera_utils.classes import (
+    Base,
+    java_subclass,
+    jfield,
+    joverride,
+    joverload,
+    jmethod,
+    jconstructor,
+    jpreconstructor,
+)
+from java.util import ArrayList
+ 
+ 
+@java_subclass(ArrayList)
+class DebugList(Base):
+    add_calls = jfield("int", default=0)
+    remove_calls = jfield("int", default=0)
+    last_action = jfield("java.lang.String", default="created")
+ 
+    @jpreconstructor(["int"])
+    def normalize_capacity(cls, capacity):
+        # Ensure capacity is never negative before Java constructor runs.
+        return [max(0, capacity)]
+ 
+    def __init__(self, *args):
+        # Python-only state. This is not a Java field.
+        self.history = []
+ 
+    @jconstructor(["int"])
+    def init_with_capacity(self, capacity):
+        self.last_action = f"capacity:{capacity}"
+        self.history.append(f"ctor(capacity={capacity})")
+ 
+    @joverride()
+    def size(self):
+        # Example of overriding a normal method and still delegating to parent.
+        current = super().size()
+        self.history.append(f"size() -> {current}")
+        return current
+ 
+    @joverload("add", ["java.lang.Object"])
+    def add_item(self, value):
+        self.add_calls += 1
+        self.last_action = f"add:{value}"
+        self.history.append(f"add(value={value})")
+        return super().add_item(value)
+ 
+    @joverload("add", ["int", "java.lang.Object"])
+    def add_at_index(self, index, value):
+        self.add_calls += 1
+        self.last_action = f"add_at:{index}:{value}"
+        self.history.append(f"add(index={index}, value={value})")
+        return super().add_at_index(index, value)
+ 
+    @joverload("remove", ["int"])
+    def remove_at_index(self, index):
+        self.remove_calls += 1
+        self.last_action = f"remove_at:{index}"
+        self.history.append(f"remove(index={index})")
+        return super().remove_at_index(index)
+ 
+    @joverload("remove", ["java.lang.Object"])
+    def remove_item(self, value):
+        self.remove_calls += 1
+        self.last_action = f"remove:{value}"
+        self.history.append(f"remove(value={value})")
+        return super().remove_item(value)
+ 
+    @jmethod("debugSummary", "java.lang.String", [])
+    def debug_summary(self):
+        return (
+            f"size={self.size()}, "
+            f"add_calls={self.add_calls}, "
+            f"remove_calls={self.remove_calls}, "
+            f"last_action={self.last_action}"
+        )
+ 
+    @jmethod("historyDump", "java.lang.String", [])
+    def history_dump(self):
+        return " | ".join(self.history)
+ 
+ 
+class ProxyDebugPlugin(BasePlugin):
+    def on_plugin_load(self):
+        debug_list = DebugList.new_instance(4)
+ 
+        debug_list.add("one")
+        debug_list.add("two")
+        debug_list.add(1, "inserted")
+        debug_list.remove("two")
+ 
+        self.log(f"Class name: {debug_list.getClass().getName()}")
+        self.log(f"Java size(): {debug_list.size()}")
+        self.log(f"Python field add_calls: {debug_list.add_calls}")
+        self.log(f"Python field remove_calls: {debug_list.remove_calls}")
+        self.log(f"Java method debugSummary(): {debug_list.debugSummary()}")
+        self.log(f"Java method historyDump(): {debug_list.historyDump()}")
+ 
+        # Access raw Java instance from the Python peer if needed.
+        self.log(f"Same object hash: {debug_list.java.hashCode()}")
+```
+
+### What to expect
+
+If everything works, this example should confirm that:
+
+DebugList.new_instance(4) selects the ArrayList(int) constructor
+DebugList.new_instance(4) returns the Python peer object, and debug_list.java is the raw Java instance
+@jpreconstructor(["int"]) runs before Java construction
+@jconstructor(["int"]) runs after Java construction
+add_calls, remove_calls, and last_action behave like Java-backed fields
+the correct overloaded add and remove handlers are called
+super() reaches the original ArrayList implementation
+debugSummary() and historyDump() exist as real Java methods on the generated class
+## Custom Settings Example
+
+The settings SDK uses this system internally for custom setting factories.
+
+Here is a simplified pattern:
+
+
+```
+from client_utils import get_media_data_controller
+from base_plugin import BasePlugin
+from ui.settings import Text, Custom
+from extera_utils.classes import Base, java_subclass, joverride
+ 
+from android.util import TypedValue
+from android.view import View, Gravity
+from android.widget import LinearLayout, FrameLayout, TextView
+from android.content import Context
+ 
+from org.telegram.messenger import AndroidUtilities
+from org.telegram.ui.ActionBar import Theme
+from org.telegram.ui.Components import LayoutHelper, BackupImageView, UItem
+ 
+from com.exteragram.messenger.plugins import PluginsController, Plugin
+from com.exteragram.messenger.plugins.models import CustomSetting
+ 
+MATCH_PARENT = -1
+WRAP_CONTENT = -2
+ 
+@java_subclass(FrameLayout)
+class PluginCell(Base):
+    def on_post_init(self, context: Context):
+        self.need_divider = False
+        self.setWillNotDraw(False)
+ 
+        self.icon_view = BackupImageView(context)
+        self.icon_view.setRoundRadius(AndroidUtilities.dp(8))
+        self.addView(self.icon_view, LayoutHelper.createFrame(48, 48, Gravity.LEFT | Gravity.CENTER_VERTICAL, 16, 0, 0, 0))
+ 
+        text_layout = LinearLayout(context)
+        text_layout.setOrientation(LinearLayout.VERTICAL)
+ 
+        self.name_text_view = TextView(context)
+        self.name_text_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteBlackText))
+        self.name_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16)
+        self.name_text_view.setLines(1)
+        self.name_text_view.setSingleLine(True)
+ 
+        self.author_text_view = TextView(context)
+        self.author_text_view.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText))
+        self.author_text_view.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13)
+        self.author_text_view.setLines(1)
+        self.author_text_view.setSingleLine(True)
+ 
+        text_layout.addView(self.name_text_view, LayoutHelper.createLinear(MATCH_PARENT, WRAP_CONTENT))
+        text_layout.addView(self.author_text_view, LayoutHelper.createLinear(MATCH_PARENT, WRAP_CONTENT, 0, 2, 0, 0))
+        self.addView(text_layout, LayoutHelper.createFrame(MATCH_PARENT, WRAP_CONTENT, Gravity.LEFT | Gravity.CENTER_VERTICAL, 76, 0, 16, 0))
+ 
+    def set_data(self, plugin: Plugin, divider: bool):
+        self.need_divider = divider
+        self.name_text_view.setText(plugin.getName() or "Unknown Plugin")
+ 
+        version = plugin.getVersion() or "1.0"
+        author = plugin.getAuthor() or "Unknown"
+        self.author_text_view.setText(f"v{version} • {author}")
+ 
+        show_icon = plugin.getPack() is not None and plugin.getIndex() >= 0
+        pack, index = (plugin.getPack(), plugin.getIndex()) if show_icon else ("exteraPlugins", 0)
+        get_media_data_controller().setPlaceholderImageByIndex(self.icon_view, pack, index, "100_100")
+ 
+        self.requestLayout()
+    
+    @joverride()
+    def onMeasure(self, widthMeasureSpec: int, heightMeasureSpec: int):
+        super().onMeasure(
+            View.MeasureSpec.makeMeasureSpec(View.MeasureSpec.getSize(widthMeasureSpec), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(AndroidUtilities.dp(68), View.MeasureSpec.EXACTLY),
+        )
+ 
+ 
+@java_subclass(CustomSetting.Factory)
+class PluginCellSettingFactory(Base):
+    @joverride()
+    def create(self, plugin: Plugin, setting: CustomSetting, args):
+        if not args:
+            return None
+        
+        item = UItem.ofFactory(self.java_class())
+        item.object = args
+        return item
+ 
+    @joverride()
+    def createView(self, context, list_view, current_account, class_guid, resources_provider):
+        view = PluginCell.new_instance(context)
+        return view.java
+ 
+    @joverride()
+    def bindView(self, view, item, divider, adapter, list_view):
+        if not item.object:
+            return False
+ 
+        PluginCell.from_java(view).set_data(item.object, divider)
+ 
+ 
+class TestPlugin(BasePlugin):
+    def on_plugin_load(self):
+        # plugin_cell_setting_factory_instance
+        self.pcsfi = PluginCellSettingFactory.new_java_instance()
+        UItem.UItemFactory.setup(self.pcsfi)
+ 
+    def create_settings(self):
+        plugins = PluginsController.getInstance().plugins.values().toArray()
+        if not plugins:
+            return [
+                Text("Restart plugin please, no plugins found")
+            ]
+ 
+        return [
+            Custom(
+                factory=self.pcsfi,
+                factory_args=_p
+            ) for _p in plugins
+        ]
+```
+
+
+If you instantiate this proxy with FactoryProxy.new_instance(), the result is the Python peer. Pass factory.java into APIs which require CustomSetting.Factory.
+
+For a higher-level settings guide, see Plugin Settings.
+
+## Advanced Notes
+### Method Resolution Order
+
+For managed overrides, the proxy system installs a Python bridge so that super() calls the parent Java implementation.
+
+Because of this, it is best to use super() only for methods marked with @joverride(...) or @joverload(...).
+
+### Exact Signature Dispatch
+
+When Java calls Python, the proxy system uses a full signature key internally:
+
+
+```
+methodName:int:java.lang.String
+```
+
+
+This is what makes overloaded methods and constructors work correctly.
+
+### Primitive Types
+
+Supported primitive type names:
+
+void
+boolean
+byte
+char
+short
+int
+long
+float
+double
+### When To Use It
+
+Use class proxy when:
+
+a Java API requires subclassing instead of interface proxying
+you need parent-method calls with super()
+you need overload-specific behavior
+you want Java fields or extra Java methods on the generated object
+
+Do not use it when a simple dynamic_proxy(...) is enough for an interface.
+
+Also make sure the base Java class is actually subclassable. Final classes cannot be used as a proxy base class.
+
+## Troubleshooting
+### super() does not work
+
+Check that:
+
+the method is declared with @joverride(...) or @joverload(...)
+the method name or signature matches the Java parent method
+### My overload is not called
+
+Check that:
+
+the Java name is correct
+the argument types match the real Java signature exactly
+primitive types use primitive names such as "int" instead of wrapper classes
+### Constructor hook is not called
+
+Check that:
+
+@jpreconstructor(...) or @jconstructor(...) uses the correct constructor signature
+for wildcard constructor hooks, your annotations are either complete or you intentionally omitted the signature
+### Field value is always None
+
+Check that:
+
+the field was declared with jfield(...)
+the field type is valid
+the default value is compatible with the declared Java type
+### Class generation fails immediately
+
+Check that:
+
+the base class is not final
+constructor signatures match a real constructor
+overload signatures match real Java method argument types
+
+Previous
+
+Plugin Settings
+
+Next
+
+Xposed Method Hooking

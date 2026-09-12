@@ -1,0 +1,171 @@
+# Development Server
+
+Connect desktop tooling to exteraGram for plugin updates, reloads, and remote debugging.
+
+# Development server
+
+The SDK includes a small TCP development server for desktop tooling. It can inspect and reload regular Python plugins, and Elyx extends it with multi-file synchronization.
+
+The default endpoint is:
+
+
+```
+127.0.0.1:42690
+```
+
+
+Because the server binds to the phone's loopback interface, connect through ADB:
+
+
+```
+adb devices
+adb forward tcp:42690 tcp:42690
+```
+
+
+Then desktop clients connect to 127.0.0.1:42690.
+
+Development use only
+
+Enable the server only while developing. Its protocol can install, rewrite, enable, disable, reload, and delete plugin code.
+
+## Message format
+
+The connection carries consecutive UTF-8 JSON objects. A basic request uses:
+
+
+```
+{
+  "@": "ping",
+  "#": "request-1"
+}
+```
+
+@ is the command name
+# is a client-generated request id
+additional fields depend on the command
+
+The response repeats the request id:
+
+
+```
+{
+  "#": "request-1",
+  "pong": true
+}
+```
+
+
+Clients should keep request ids unique while requests are in flight and match responses by #.
+
+## Core commands
+Command	Additional fields	Purpose
+ping	—	Test the connection
+get_plugins	—	List loaded plugins and their current state
+enable_plugin	plugin_id	Enable an installed plugin
+disable_plugin	plugin_id	Disable an installed plugin
+reload_plugin	plugin_id	Reload a regular single-file plugin
+write_plugin	plugin_id, content	Install or update Python source
+remove_plugin	plugin_id	Delete an installed plugin
+start_debugger	host, port, platform	Start a remote debugger
+stop_debugger	platform	Stop a remote debugger
+
+write_plugin.content contains the complete Python source as a JSON string. The server writes it to a temporary file and passes it through the normal plugin loader.
+
+## Elyx multi-file commands
+
+Elyx adds incremental folder comparison and change batches:
+
+Command	Purpose
+elyx_ping	Check that Elyx development support is active
+get_elyx_plugins	List loaded structured plugins
+elyx_compare_folder	Compare local hashes with installed files
+elyx_changes	Apply file changes and reload one Elyx plugin
+
+Elyx payloads are compressed JSON carried in a base64 data field. See Elyx development and build for the payload format, initial installation requirement, and elyx_dev_client.py workflow.
+
+## Remote debugging
+
+The server accepts:
+
+
+```
+{
+  "@": "start_debugger",
+  "#": "debug-1",
+  "host": "127.0.0.1",
+  "port": 5678,
+  "platform": "vscode"
+}
+```
+
+
+Supported platform values:
+
+vscode
+pycharm
+
+The debugger port is separate from 42690. Configure the IDE and any required ADB reverse/forward rule for the direction used by that debugger.
+
+VS Code attach example:
+
+
+```
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to exteraGram",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": {
+        "host": "127.0.0.1",
+        "port": 5678
+      },
+      "pathMappings": [
+        {
+          "localRoot": "${workspaceFolder}",
+          "remoteRoot": "/data/user/0/com.exteragram.messenger/files/plugins"
+        }
+      ]
+    }
+  ]
+}
+```
+
+
+Debugger support also depends on the corresponding Python debugger package being available in the app runtime.
+
+## Client behavior
+
+A robust custom client should:
+
+test ping or elyx_ping before sending changes
+apply socket timeouts
+preserve request ids
+display complete server errors
+ignore build caches and version-control directories
+debounce rapid editor events into one change batch
+reconnect after the app restarts
+
+The desktop client's CLI is not part of the SDK runtime API. Keep the exact client version and its usage instructions with the plugin project.
+
+## Connection troubleshooting
+
+If the client cannot connect:
+
+confirm developer mode and the server are enabled
+run adb devices
+recreate adb forward tcp:42690 tcp:42690
+check that no other process owns local port 42690
+restart the server after changing device
+
+If core ping works but elyx_ping does not, the regular server is running but Elyx development support has not initialized.
+
+Previous
+
+Bulletin Helper
+
+Next
+
+PIP & Dependencies

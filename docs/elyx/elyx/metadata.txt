@@ -1,0 +1,203 @@
+Elyx
+# Metadata
+
+Declare identity, compatibility, dependencies, and localized descriptions.
+
+# Plugin metadata
+
+Structured Elyx plugins keep metadata outside the entry module. YAML is the recommended format:
+
+
+```
+id: better_previews
+name: Better Previews
+description: "{plugin_description}"
+author: "@yourUsername"
+version: "1.2.0"
+icon: exteraPlugins/1
+app_version: ">=12.5.1"
+sdk_version: ">=1.4.5.3"
+requirements: "requests>=2.32, PyYAML>=6"
+requires:
+  helper_plugin (1.4.0): https://example.com/helper_plugin.elyx
+```
+
+## File discovery
+
+Set an explicit path in refmap.yml:
+
+
+```
+metainfo: plugin/meta.yml
+```
+
+
+or place one of these files at the archive root:
+
+metainfo.yaml
+metainfo.yml
+metainfo.json
+
+Keys surrounded by double underscores are also normalized when an explicit metadata file is used, so __name__ becomes name. New projects should use plain names.
+
+## Fields
+Field	Required	Default	Meaning
+id	yes	—	Stable plugin identifier
+name	yes	—	Display name
+description	no	Description not provided	Markdown-capable description
+author	no	Unknown author	Author name or Telegram handle
+version	no	1.0.0	Plugin release version
+icon	no	empty	Host icon reference, for example exteraPlugins/1
+min_version	no	empty	Legacy minimum app version
+app_version	no	empty	App compatibility expression
+sdk_version	no	empty	SDK compatibility expression
+requirements	no	empty	Packages installed through the plugin PIP controller
+requires	no	{}	Other plugins required at runtime
+### id
+
+id must:
+
+contain 2 to 32 characters
+contain only ASCII letters, digits, and _
+remain stable across updates
+
+Valid:
+
+
+```
+elyx_hello
+weather2
+MyPlugin
+```
+
+
+Invalid:
+
+
+```
+a
+my-plugin
+my plugin
+плагин
+```
+
+
+The identifier owns the plugin directory, settings, dependencies, enabled state, hooks, and menu items. Changing it creates a different plugin instead of updating the old one.
+
+### description
+
+Descriptions may contain Markdown and localization placeholders:
+
+
+```
+description: "{plugin_description}\n\n[Source code](https://example.com)"
+```
+
+
+Given:
+
+
+```
+# strings_en.yml
+plugin_description: Adds better link previews.
+```
+
+
+Elyx resolves {plugin_description} when loading metadata. It first checks the current locale, then English. If a key is missing, its key name is used as the replacement text.
+
+### Version fields
+
+Use quoted YAML strings so parsers never reinterpret version values:
+
+
+```
+version: "2.0.0-beta.1"
+app_version: ">=12.5.1"
+sdk_version: ">=1.4.5.3"
+```
+
+
+app_version and sdk_version are passed to the host plugin system. Declare the oldest versions on which you actually tested the APIs used by your plugin.
+
+min_version is retained for legacy compatibility and performs a direct minimum-app-version check. Prefer app_version in new projects.
+
+### requirements
+
+This is either a comma-separated string:
+
+
+```
+requirements: "requests>=2.32, tinydb>=4.8"
+```
+
+
+or an empty value when no packages are needed:
+
+
+```
+requirements: ""
+```
+
+
+The engine parses the value and asks the host PIP controller to install the packages before importing main.
+
+### requires
+
+Declare dependencies on other plugins as a mapping:
+
+
+```
+requires:
+  helper_plugin: https://example.com/helper_plugin.elyx
+  shared_runtime (2.1.0): https://example.com/shared_runtime.elyx
+```
+
+the mapping key is a plugin id
+an optional minimum version goes in parentheses
+the value is an optional download link shown by the installer
+the required plugin must be installed and enabled
+
+Required plugin ids follow the same 2–32 character rule.
+
+## Access metadata at runtime
+
+Use the plugin-bound metainfo value:
+
+
+```
+from elyx import metainfo
+ 
+self.log(f"Running {metainfo['name']} {metainfo['version']}")
+```
+
+
+metainfo is a dictionary containing normalized values and runtime-generated fields. Treat undocumented generated keys as read-only implementation details.
+
+For optional environments, use:
+
+
+```
+from elyx import get_environment
+ 
+environment = get_environment()
+metadata = environment["metainfo"]
+```
+
+## Complete minimal metadata
+
+```
+id: my_plugin
+name: My Plugin
+version: "1.0.0"
+```
+
+
+Everything else is optional, but production plugins should normally include description, author, app_version, and sdk_version.
+
+Previous
+
+Project Structure
+
+Next
+
+Modules and Imports

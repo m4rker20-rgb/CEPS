@@ -1,0 +1,147 @@
+# Bulletin Helper
+
+Easily display various types of bottom-screen notifications (Bulletins) in your plugins.
+
+The BulletinHelper class, found in bulletin.py, provides a set of static methods to conveniently show Telegram's "Bulletin" notifications. Bulletins are small, non-intrusive messages that typically appear at the bottom of the screen and dismiss automatically.
+
+If you do not pass a fragment explicitly, the helper tries a few sensible fallbacks:
+
+the fragment you passed in
+the current safe fragment from LaunchActivity
+the visible bulletin bottom sheet, if one is active
+the global bulletin factory as a last resort
+## Basic Usage
+
+Most BulletinHelper methods are class methods and can be called directly. They often accept an optional fragment argument; if not provided, the helper tries to use the currently active fragment or a global context.
+
+
+```
+from ui.bulletin import BulletinHelper
+from client_utils import get_last_fragment # Optional, for explicit fragment passing
+from org.telegram.messenger import R as R_tg # For Telegram's R.raw Lottie animations
+ 
+# Get current fragment (optional)
+current_fragment = get_last_fragment()
+ 
+# Show a simple informational bulletin
+BulletinHelper.show_info("This is some information.", current_fragment)
+ 
+# Show an error bulletin
+BulletinHelper.show_error("An error occurred processing your request.", current_fragment)
+ 
+# Show a success bulletin
+BulletinHelper.show_success("Action completed successfully!", current_fragment)
+```
+
+
+UI Thread
+
+All BulletinHelper.show_... methods automatically ensure that the bulletin is shown on the Android UI thread, so you don't need to wrap these calls in run_on_ui_thread yourself.
+
+## Bulletin Types and Methods
+
+BulletinHelper wraps common functionalities of org.telegram.ui.Components.BulletinFactory.
+
+### Standard Bulletins
+BulletinHelper.show_info(message: str, fragment: Optional[BaseFragment] = None)
+Shows a bulletin with a default info icon (e.g., R.raw.info).
+BulletinHelper.show_error(message: str, fragment: Optional[BaseFragment] = None)
+Shows a bulletin with a default error/alert icon.
+BulletinHelper.show_success(message: str, fragment: Optional[BaseFragment] = None)
+Shows a bulletin with a default success/check icon.
+### Custom Simple Bulletins
+BulletinHelper.show_simple(text: str, icon_res_id: int, fragment: Optional[BaseFragment] = None)
+Shows a single-line bulletin with a custom Lottie animation icon.
+icon_res_id: A Lottie animation resource ID (e.g., R_tg.raw.some_animation).
+
+```
+BulletinHelper.show_simple("Processing...", R_tg.raw.timer, current_fragment)
+```
+
+BulletinHelper.show_two_line(title: str, subtitle: str, icon_res_id: int, fragment: Optional[BaseFragment] = None)
+Shows a two-line bulletin with a custom icon, title, and subtitle.
+
+```
+BulletinHelper.show_two_line("Download Complete", "File saved to gallery.", R_tg.raw.ic_download_done, current_fragment)
+```
+
+### Bulletins with Actions
+
+BulletinHelper.show_with_button(text: str, icon_res_id: int, button_text: str, on_click: Optional[Callable[[], None]], fragment: Optional[BaseFragment] = None, duration: int = BulletinHelper.DURATION_PROLONG)
+
+Shows a bulletin with an icon, text, and a clickable button.
+on_click: A callable to execute when the button is pressed.
+duration: How long the bulletin stays visible (e.g., BulletinHelper.DURATION_SHORT, DURATION_LONG, DURATION_PROLONG).
+
+```
+def open_settings_action():
+    # Code to open some settings page
+    print("Settings button clicked!")
+ 
+BulletinHelper.show_with_button(
+    "Plugin settings updated.",
+    R_tg.raw.info,
+    "Configure",
+    open_settings_action,
+    current_fragment
+)
+```
+
+
+BulletinHelper.show_undo(text: str, on_undo: Callable[[], None], on_action: Optional[Callable[[], None]] = None, subtitle: Optional[str] = None, fragment: Optional[BaseFragment] = None)
+
+Shows an "Undo"-style bulletin.
+on_undo: Called if the "Undo" button is pressed.
+on_action: Called after a delay if "Undo" is not pressed (e.g., to commit an action).
+
+```
+def perform_delete():
+    print("Item permanently deleted.")
+ 
+def undo_delete():
+    print("Delete operation undone.")
+ 
+BulletinHelper.show_undo(
+    "Item moved to trash.",
+    on_undo=undo_delete,
+    on_action=perform_delete,
+    fragment=current_fragment
+)
+```
+
+### Contextual Bulletins (Predefined)
+BulletinHelper.show_copied_to_clipboard(message: Optional[str] = None, fragment: Optional[BaseFragment] = None)
+Shows "Text copied to clipboard" or a custom message.
+BulletinHelper.show_link_copied(is_private_link_info: bool = False, fragment: Optional[BaseFragment] = None)
+Shows "Link copied" bulletin, with a variant for private link info.
+BulletinHelper.show_file_saved_to_gallery(is_video: bool = False, amount: int = 1, fragment: Optional[BaseFragment] = None)
+Shows "Photo/Video saved to gallery" (or plural versions).
+BulletinHelper.show_file_saved_to_downloads(file_type_enum_name: str = "UNKNOWN", amount: int = 1, fragment: Optional[BaseFragment] = None)
+Shows "File saved to downloads" or similar, based on BulletinFactory.FileType.
+file_type_enum_name: String name of the enum from BulletinFactory.FileType (e.g., "PHOTO_TO_DOWNLOADS", "GIF").
+
+```
+BulletinHelper.show_file_saved_to_downloads("MUSIC", amount=3, fragment=current_fragment)
+```
+
+## Durations
+
+The BulletinHelper class defines constants for common durations:
+
+BulletinHelper.DURATION_SHORT (1500 ms)
+BulletinHelper.DURATION_LONG (2750 ms)
+BulletinHelper.DURATION_PROLONG (5000 ms)
+
+These can be used with methods like show_with_button.
+
+## Finding Lottie Animations (R.raw...)
+
+Lottie animations used for bulletin icons are typically stored as raw resources in Telegram's codebase. You can explore Telegram's source (specifically TMessagesProj/src/main/res/raw/) to find available animations (e.g., info.json, success.json, delete.json). In Python, these are accessed via org.telegram.messenger.R.raw.animation_name (e.g., R_tg.raw.info).
+
+Previous
+
+Alert Dialog Builder
+
+Next
+
+Development Server

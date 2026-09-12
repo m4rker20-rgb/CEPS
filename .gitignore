@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+ceps_keys/*.key
+**/builds/*
+**/tmp_*
+*.ceps
+*.eaf
+*.plugin

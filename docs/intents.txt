@@ -1,0 +1,501 @@
+# Intents
+
+Register global before and after handlers for Telegram links, deeplinks, and custom intents.
+
+The intents module provides IntentsManager, a global API for reacting to links and intents handled by exteraGram.
+
+This manager is available only on exteraGram 66999 (12.6.4) and newer.
+
+It lets you register:
+
+before handlers, called before the original method
+after handlers, called after the original method
+## Import
+
+```
+from intents import IntentsManager as IM
+```
+
+## new_global_before_handler(...)
+
+Registers a global handler that runs in beforeHookedMethod.
+
+
+```
+from intents import IntentsManager as IM
+ 
+ 
+def on_chat_link(id):
+    print("Chat id:", id)
+ 
+ 
+handle = IM.new_global_before_handler(
+    on_chat_link,
+    scheme="tg",
+    host="chat",
+    required_path_args_names=["id"],
+)
+```
+
+## new_global_after_handler(...)
+
+Registers a global handler that runs in afterHookedMethod.
+
+
+```
+from intents import IntentsManager as IM
+ 
+ 
+def on_after_link(intent=None, scheme=None, host=None):
+    print("Handled:", scheme, host)
+ 
+ 
+handle = IM.new_global_after_handler(
+    on_after_link,
+    scheme="https",
+    host="t.me",
+)
+```
+
+## Filters
+
+Both registration methods accept the same filter arguments.
+
+### scheme
+
+Matches intent.data.scheme.
+
+
+```
+handle = IM.new_global_before_handler(
+    lambda: None,
+    scheme="tg",
+)
+```
+
+### host
+
+Matches intent.data.host.
+
+
+```
+handle = IM.new_global_before_handler(
+    lambda: None,
+    scheme="tg",
+    host="chat",
+)
+```
+
+### path
+
+Matches intent.data.path.
+
+If the value does not start with /, the SDK adds it automatically.
+
+
+```
+def on_profile(path=None):
+    print(path)
+ 
+ 
+handle = IM.new_global_before_handler(
+    on_profile,
+    scheme="tg",
+    host="profile",
+    path="/user/42",
+)
+```
+
+
+path also supports template variables like {user_id}.
+
+
+```
+def on_profile(user_id, path=None):
+    print("User:", user_id)
+    print("Full path:", path)
+ 
+ 
+handle = IM.new_global_before_handler(
+    on_profile,
+    scheme="tg",
+    host="profile",
+    path="/user/{user_id}",
+)
+```
+
+### required_path_args_names
+
+Despite the name, this currently means required query arguments.
+
+If one of these query arguments is missing, the handler does not run.
+
+
+```
+def on_chat(id):
+    print("Chat:", id)
+ 
+ 
+handle = IM.new_global_before_handler(
+    on_chat,
+    scheme="tg",
+    host="chat",
+    required_path_args_names=["id"],
+)
+```
+
+
+This matches tg://chat?id=123 and does not match tg://chat.
+
+### action
+
+Matches intent.getAction().
+
+
+```
+from android.content import Intent
+ 
+ 
+def on_view_action(action=None):
+    print(action)
+ 
+ 
+handle = IM.new_global_before_handler(
+    on_view_action,
+    action=Intent.ACTION_VIEW,
+)
+```
+
+### whitelist_flags
+
+Requires every listed flag to be present in intent.getFlags().
+
+
+```
+from android.content import Intent
+ 
+ 
+handle = IM.new_global_before_handler(
+    lambda: None,
+    whitelist_flags=[Intent.FLAG_ACTIVITY_NEW_TASK],
+)
+```
+
+### blacklist_flags
+
+Rejects the intent if any listed flag is present in intent.getFlags().
+
+
+```
+from android.content import Intent
+ 
+ 
+handle = IM.new_global_before_handler(
+    lambda: None,
+    blacklist_flags=[Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY],
+)
+```
+
+### type
+
+Matches intent.getType().
+
+
+```
+handle = IM.new_global_before_handler(
+    lambda: None,
+    type="text/plain",
+)
+```
+
+### categories
+
+Requires every listed category to be present in intent.getCategories().
+
+
+```
+from android.content import Intent
+ 
+ 
+handle = IM.new_global_before_handler(
+    lambda: None,
+    categories=[Intent.CATEGORY_BROWSABLE],
+)
+```
+
+### priority
+
+Handlers are sorted by ascending priority.
+
+Lower numbers run first.
+
+
+```
+def first():
+    print("first")
+ 
+ 
+def second():
+    print("second")
+ 
+ 
+IM.new_global_before_handler(first, scheme="tg", priority=0)
+IM.new_global_before_handler(second, scheme="tg", priority=10)
+```
+
+## Callback Arguments
+
+The SDK inspects your callback signature and only passes values that the function explicitly asks for.
+
+Available standard names:
+
+intent
+scheme
+host
+path
+query_args
+action
+flags
+type
+categories
+
+In addition, the SDK exposes:
+
+every query argument by name, such as id or plugin
+every path-template variable by name, such as user_id from /user/{user_id}
+### Requesting only one named value
+
+```
+def on_link(host):
+    print(host)
+ 
+ 
+IM.new_global_before_handler(on_link, scheme="tg")
+```
+
+### Requesting the full common context
+
+```
+def on_link(intent, scheme, host, path, query_args, action, flags, type, categories):
+    print(intent)
+    print(scheme)
+    print(host)
+    print(path)
+    print(query_args)
+    print(action)
+    print(flags)
+    print(type)
+    print(categories)
+ 
+ 
+IM.new_global_before_handler(on_link, scheme="https")
+```
+
+### Receiving query arguments by name
+
+```
+def on_setting_link(plugin, section=None):
+    print("Plugin:", plugin)
+    print("Section:", section)
+ 
+ 
+IM.new_global_after_handler(
+    on_setting_link,
+    scheme="https",
+)
+```
+
+### Receiving path variables by name
+
+```
+def on_profile(user_id, path=None):
+    print(user_id)
+    print(path)
+ 
+ 
+IM.new_global_before_handler(
+    on_profile,
+    scheme="tg",
+    host="profile",
+    path="/user/{user_id}",
+)
+```
+
+### Using **kwargs
+
+If the callback accepts **kwargs, the SDK passes the full available named context.
+
+
+```
+def on_any_link(**kwargs):
+    print(kwargs["intent"])
+    print(kwargs.get("scheme"))
+    print(kwargs.get("id"))
+    print(kwargs.get("query_args"))
+    print(kwargs.get("flags"))
+    print(kwargs.get("categories"))
+ 
+ 
+IM.new_global_before_handler(on_any_link, scheme="tg")
+```
+
+### Using *args
+
+If the callback accepts *args, the SDK also passes the standard positional bundle:
+
+intent
+scheme
+host
+path
+query_args
+action
+flags
+type
+categories
+
+```
+def on_any_link(*args):
+    intent, scheme, host, path, query_args, action, flags, type, categories = args
+    print(scheme, host, path, flags)
+ 
+ 
+IM.new_global_before_handler(on_any_link, scheme="tg")
+```
+
+### Combining named parameters and **kwargs
+
+```
+def on_chat(id, intent=None, **kwargs):
+    print("Chat id:", id)
+    print("Intent:", intent)
+    print("Host:", kwargs.get("host"))
+    print("Query args:", kwargs.get("query_args"))
+ 
+ 
+IM.new_global_before_handler(
+    on_chat,
+    scheme="tg",
+    host="chat",
+    required_path_args_names=["id"],
+)
+```
+
+## Stopping Further Handling
+
+before handlers can stop the rest of the Python handlers and also stop the original Java intent handling.
+
+To do that, return True from the callback.
+
+Behavior:
+
+only before handlers can stop handling
+once a before callback returns True, later handlers are not called
+the SDK returns true from the Xposed hook by calling param.setResult(true)
+
+```
+def intercept_chat(id):
+    print("Intercepted:", id)
+    return True
+ 
+ 
+IM.new_global_before_handler(
+    intercept_chat,
+    scheme="tg",
+    host="chat",
+    required_path_args_names=["id"],
+)
+```
+
+
+Returning any value other than True does not stop handling.
+
+after handlers cannot stop the original intent flow.
+
+## HandlerHandle
+
+Both registration methods return a HandlerHandle.
+
+Call unhandle() on it to remove the registered handler.
+
+
+```
+from intents import IntentsManager as IM
+ 
+ 
+def on_link():
+    print("called")
+ 
+ 
+handle = IM.new_global_before_handler(on_link, scheme="tg")
+handle.unhandle()
+```
+
+## unhandle(handler_id)
+
+You can also remove a handler manually by its id.
+
+
+```
+from intents import IntentsManager as IM
+ 
+ 
+def on_link():
+    print("called")
+ 
+ 
+handle = IM.new_global_before_handler(on_link, scheme="tg")
+IM.unhandle(handle.handler_id)
+```
+
+## parse(url: str)
+
+parse(...) is a small helper for parsing URL-like strings.
+
+It returns a dictionary with at least:
+
+scheme
+host
+
+It may also include:
+
+path
+query
+
+```
+from intents import IntentsManager as IM
+ 
+parts = IM.parse("tg://chat?id=123")
+ 
+print(parts["scheme"])  # "tg"
+print(parts["host"])    # "chat"
+print(parts["query"])   # "id=123"
+```
+
+## Exceptions
+
+IM.unhandle(...) raises IntentsManager.HandlerNotRegistered if the handler id does not exist.
+
+
+```
+from intents import IntentsManager as IM
+ 
+try:
+    IM.unhandle("missing-handler-id")
+except IM.HandlerNotRegistered as error:
+    print(error)
+```
+
+## Notes
+matching by scheme, host, path, required query arguments, action, flags, type, and categories happens on the Java side
+only matching handler ids are dispatched to Python
+handlers are executed in ascending priority order
+required_path_args_names currently means required query-argument names
+before handlers may stop both later handlers and the original Java intent handling by returning True
+
+Previous
+
+File Utilities
+
+Next
+
+Alert Dialog Builder

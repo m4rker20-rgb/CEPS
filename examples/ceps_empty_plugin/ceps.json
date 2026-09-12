@@ -1,0 +1,17 @@
+{
+  "id": "ceps_empty",
+  "name": "CEPS Empty",
+  "description": "Пустой защищённый плагин-пример для CEPS",
+  "author": "you",
+  "version": "1.0.0",
+  "icon": "exteraPlugins/1",
+  "app_version": ">=12.5.1",
+  "sdk_version": ">=1.4.5.0",
+  "entry": "src/main.py",
+  "encrypt": [
+    "src/*.py"
+  ],
+  "exclude": [],
+  "embed_shares": true,
+  "key": "ceps_keys/ceps_empty.key"
+}

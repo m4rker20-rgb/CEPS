@@ -1,0 +1,336 @@
+Elyx
+# Public API
+
+Reference the stable symbols and plugin-bound values available from elyx.
+
+# Public elyx API
+
+Plugin code has one supported import surface:
+
+
+```
+import elyx
+```
+
+
+or:
+
+
+```
+from elyx import Asset, SettingsController, strings
+```
+
+
+Do not import engine, importer, installer, or plugin model classes from their physical runtime modules. They are host implementation details.
+
+## Plugin-bound environment
+
+These names are resolved for the plugin which called them:
+
+Name	Type	Availability
+settings	SettingsController	always
+metainfo	dict	when metadata loaded successfully
+refmap	dict	when a refmap loaded successfully
+assets	Assets	when an asset directory is declared or discovered
+strings	Strings	when at least one localization value was loaded
+
+```
+from elyx import assets, metainfo, settings, strings
+```
+
+
+These dynamic values are intentionally not included in elyx.__all__, because not every plugin declares every environment component.
+
+### get_environment()
+
+```
+from elyx import get_environment
+ 
+environment = get_environment()
+settings = environment["settings"]
+assets = environment.get("assets")
+strings = environment.get("strings")
+```
+
+
+Returns the complete environment dictionary for the calling plugin. Raises RuntimeError when called outside Elyx plugin code.
+
+### import_module(name, package=None)
+
+```
+from elyx import import_module
+ 
+feature = import_module("features.preview")
+```
+
+
+Imports a matching module relative to the calling plugin. Falls back to normal Python import behavior when no local module exists.
+
+## Assets
+### Assets(dir_path)
+
+Represents a resource directory. Supports get, item access, attribute access, nested directories, containment checks, iteration, and len.
+
+See Assets.
+
+### Asset(dir_path, filename, name)
+
+Represents one resource file.
+
+Class methods:
+
+
+```
+Asset.from_path(path)
+Asset.temp_asset_from_url(url, filename)
+```
+
+
+Content methods:
+
+
+```
+content_bytes()
+content_string()
+content_json()
+content_yaml()
+content()
+```
+
+
+Android conversion methods:
+
+
+```
+to_image_location()
+to_drawable()
+to_bitmap_drawable(width=32, height=32)
+to_lottie_drawable(width=32, height=32)
+to_svg_drawable(width=None, height=None)
+to_svg_thumb(color_key, alpha)
+to_svg_bitmap(width=32, height=32, white=False)
+```
+
+### Asset exceptions
+
+```
+from elyx import AssetNotFoundException, AssetsDirNotFoundException
+```
+
+## Localization
+### Strings(all_strings)
+
+Locale-aware, read-only lookup object.
+
+
+```
+catalog = Strings({
+    "en": {"hello": "Hello, {name}!"},
+    "ru": {"hello": "Привет, {name}!"},
+})
+ 
+catalog("hello", name="Alice")
+catalog.get("hello")
+catalog.get_with_locale("hello", locale="ru")
+catalog.pluralize(5, "file_forms")
+```
+
+
+See Localization.
+
+## Settings
+### SettingsController(plugin_id)
+
+Persistent settings wrapper.
+
+
+```
+controller.get_settings()
+controller.get_setting(key, default=None)
+controller.get(key, default=None)
+controller.set_setting(key, value, reload_settings=False)
+controller.set(key, value, reload_settings=False)
+controller.clear_settings()
+```
+
+
+It also supports:
+
+
+```
+controller[key]
+controller[key] = value
+controller(key, default)
+```
+
+
+See Settings storage.
+
+## Java callback proxies
+
+Elyx exports ready-to-instantiate proxy classes:
+
+Name	Java interface	Implemented method	Returns callback value
+OnClickListener	android.view.View.OnClickListener	onClick	no
+Runnable	java.lang.Runnable	run	no
+Callback	Utilities.Callback	run	no
+Callback2	Utilities.Callback2	run	no
+Callback3	Utilities.Callback3	run	no
+CallbackReturn	Utilities.CallbackReturn	run	yes
+
+Example:
+
+
+```
+from elyx import OnClickListener, Runnable
+ 
+button.setOnClickListener(
+    OnClickListener(lambda view: self.log("Clicked"))
+)
+ 
+queue.postRunnable(
+    Runnable(lambda: self.log("Running"))
+)
+```
+
+
+Extra constructor arguments are appended to the Java callback arguments:
+
+
+```
+def on_click(view, item_id):
+    self.log(f"Clicked {item_id}")
+ 
+button.setOnClickListener(OnClickListener(on_click, "save"))
+```
+
+
+Exceptions are caught and written to the app log so they do not cross the Java callback boundary.
+
+## Proxy generators
+### gen(java_class, method_name, return_value=False, default_value=None)
+
+Creates and caches a Python proxy class for a one-method Java interface:
+
+
+```
+from android.content import DialogInterface
+from elyx import gen
+ 
+OnDismiss = gen(DialogInterface.OnDismissListener, "onDismiss")
+dialog.setOnDismissListener(OnDismiss(lambda dialog: self.log("Dismissed")))
+```
+
+
+For a callback which returns a value:
+
+
+```
+Predicate = gen(
+    SomeJavaPredicate,
+    "test",
+    return_value=True,
+    default_value=False,
+)
+ 
+predicate = Predicate(lambda value: value is not None)
+```
+
+
+default_value is returned when the Python callback raises. It is valid only when return_value=True.
+
+### gen2(java_class, return_value=False, **methods)
+
+Creates a proxy for an interface with several methods:
+
+
+```
+from elyx import gen2
+ 
+Listener = gen2(
+    SomeJavaListener,
+    onStart=lambda value: log_start(value),
+    onFinish=lambda value: log_finish(value),
+)
+ 
+instance = Listener()
+```
+
+
+If the interface methods must return their Python results, set return_value=True.
+
+## MVEL
+### mvel_execute(script, data, to_type=None, java_instance=None)
+
+Compiles and caches an MVEL expression, converts a Python dictionary to java.util.HashMap, and executes it:
+
+
+```
+from elyx import mvel_execute
+ 
+visible = mvel_execute(
+    "enabled && count > 0",
+    {"enabled": True, "count": 3},
+)
+```
+
+
+data must be a Python dict or Java HashMap.
+
+Optional arguments:
+
+to_type asks MVEL to convert the result to a Java type
+java_instance provides the this value
+## LazyDict
+
+A dictionary with attribute lookup:
+
+
+```
+from elyx import LazyDict
+ 
+value = LazyDict({"title": "Hello"})
+self.log(value.title)
+```
+
+
+Missing attributes behave like missing dictionary keys and raise KeyError.
+
+## Supported exports
+
+The current elyx.__all__ is:
+
+
+```
+(
+    "Asset",
+    "AssetNotFoundException",
+    "Assets",
+    "AssetsDirNotFoundException",
+    "Callback",
+    "Callback2",
+    "Callback3",
+    "CallbackReturn",
+    "LazyDict",
+    "OnClickListener",
+    "Runnable",
+    "SettingsController",
+    "Strings",
+    "gen",
+    "gen2",
+    "get_environment",
+    "import_module",
+    "mvel_execute",
+)
+```
+
+
+The plugin-bound assets, metainfo, refmap, settings, and strings values are accessed explicitly and are not part of star imports.
+
+Previous
+
+Development and Build
+
+Next
+
+Troubleshooting

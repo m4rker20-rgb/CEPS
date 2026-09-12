@@ -1,0 +1,120 @@
+# Setup
+
+How to start developing plugins.
+
+### Install a recent app build
+
+Make sure you are using a recent build of exteraGram with plugin support enabled.
+
+For this SDK tree, treat exteraGram 12.5.1+ as the practical minimum.
+
+Current test builds are usually published in the beta channel.
+
+### Enable the plugin engine
+
+After logging into your account, go to exteraGram Preferences > Plugins and enable the plugin engine.
+
+Then open the info screen for plugins and enable developer mode.
+
+### Create a local project
+
+Create a folder on your PC and add a Python file for the plugin.
+
+A simple layout is enough:
+
+
+```
+my-plugin/
+`-- hello_world.py
+```
+
+
+Recommended desktop-development tips:
+
+keep the filename stable; the least surprising setup is filename == __id__ + ".py"
+point your IDE at this repository's src/ directory for imports and autocomplete
+keep metadata as plain top-level constants so the loader can parse them
+
+Minimal starter file:
+
+
+```
+from base_plugin import BasePlugin
+ 
+__id__ = "hello_world"
+__name__ = "Hello World"
+__description__ = "My first exteraGram plugin"
+__author__ = "Your Name"
+__version__ = "1.0.0"
+__icon__ = "exteraPlugins/1"
+__app_version__ = ">=12.5.1"
+__sdk_version__ = ">=1.4.4.3"
+ 
+ 
+class HelloWorldPlugin(BasePlugin):
+    pass
+```
+
+### Connect to the device
+
+Connect your phone to your PC and make sure ADB is available on your PATH.
+
+You have two common workflows:
+
+copy the .py file into the app's plugins directory and reload it manually
+use your own helper tooling which talks to the built-in DevServer for write/reload/debug flows
+
+On-device plugin files live under a path similar to:
+
+
+```
+/data/user/0/com.exteragram.messenger/files/plugins/<plugin_id>.py
+```
+
+
+Debugging ports
+
+The built-in development server listens on 42690 by default. The debugger port is separate and chosen by you or your tooling. In the example below it is 5678.
+
+VS Code remote attach example:
+
+
+```
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Python Debugger: Attach exteraGram plugin",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "host": "localhost",
+                "port": 5678
+            },
+            "pathMappings": [
+                {
+                    "localRoot": "/path/to/your/workspace",
+                    "remoteRoot": "/data/user/0/com.exteragram.messenger/files/plugins"
+                }
+            ]
+        }
+    ]
+}
+```
+
+
+Inside that remote directory, your plugin file should still match the plugin id, for example hello_world.py.
+
+## First pages to keep open
+First Plugin
+Plugin Class
+Plugin Settings
+Client Utilities
+
+Previous
+
+Introduction
+
+Next
+
+First Plugin

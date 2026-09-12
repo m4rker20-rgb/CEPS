@@ -1,0 +1,149 @@
+Elyx
+# Settings Storage
+
+Read and write persistent plugin values through the Elyx environment.
+
+# Settings storage
+
+Every Elyx plugin receives a SettingsController bound to its metadata id:
+
+
+```
+from elyx import settings
+```
+
+
+This object stores values in the same host settings system used by BasePlugin.get_setting and settings rows from ui.settings.
+
+## Read values
+
+Equivalent forms:
+
+
+```
+enabled = settings.get_setting("enabled", True)
+enabled = settings.get("enabled", True)
+enabled = settings("enabled", True)
+enabled = settings["enabled"]
+```
+
+
+Bracket lookup has no explicit default and returns the host's default result when the key is absent. Prefer get when the fallback matters.
+
+Read all plugin settings:
+
+
+```
+values = settings.get_settings()
+```
+
+## Write values
+
+```
+settings.set_setting("enabled", True)
+settings.set("page_size", 50)
+settings["username"] = "Alice"
+```
+
+
+To ask the host to rebuild an open settings screen:
+
+
+```
+settings.set("mode", "advanced", reload_settings=True)
+```
+
+
+Use reload_settings=True only when the value changes which rows should be visible or how they should be rendered. A normal value update does not need a full reload.
+
+## Clear values
+
+```
+settings.clear_settings()
+```
+
+
+This removes all stored values for the current plugin id. It does not delete the plugin or reset files created elsewhere.
+
+## Integrate with settings UI
+
+The key used by a settings row is the same key visible through settings:
+
+
+```
+from typing import Any, List
+ 
+from base_plugin import BasePlugin
+from elyx import settings, strings
+from ui.settings import Header, Input, Switch
+ 
+ 
+class SettingsExamplePlugin(BasePlugin):
+    def create_settings(self) -> List[Any]:
+        return [
+            Header(text=strings("settings_title")),
+            Switch(
+                key="enabled",
+                text=strings("enabled"),
+                default=True,
+            ),
+            Input(
+                key="username",
+                text=strings("username"),
+                default="Alice",
+            ),
+        ]
+ 
+    def on_plugin_load(self):
+        if settings.get("enabled", True):
+            self.log(f"Hello {settings.get('username', 'Alice')}")
+```
+
+
+For all available UI rows and callbacks, see Plugin Settings.
+
+## SettingsController
+
+You can create an explicit controller:
+
+
+```
+from elyx import SettingsController
+ 
+my_settings = SettingsController("my_plugin")
+```
+
+
+This is mainly useful for shared library code which is given a plugin id. In a normal plugin, use the environment-provided settings; it cannot accidentally target the wrong id.
+
+Method	Meaning
+get_settings()	Return all stored values
+get_setting(key, default=None)	Read one value
+get(key, default=None)	Short alias
+set_setting(key, value, reload_settings=False)	Write one value
+set(key, value, reload_settings=False)	Short alias
+clear_settings()	Remove all values
+## Storage guidance
+
+Settings are suitable for:
+
+booleans, numbers, short strings, and small lists
+UI preferences
+lightweight persistent state
+
+Use files or a database for:
+
+large JSON objects
+caches and downloaded media
+frequently changing event history
+secrets requiring dedicated secure storage
+
+Settings survive plugin reloads and updates because they are keyed by plugin id. They are removed when the host clears or deletes that plugin's settings.
+
+Previous
+
+Localization
+
+Next
+
+Dependencies

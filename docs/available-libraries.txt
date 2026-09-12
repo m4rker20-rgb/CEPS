@@ -1,0 +1,32 @@
+# Available Libraries
+
+A list of pre-installed Python libraries available in the plugin environment.
+
+The plugin environment comes with a specific version of Python and a set of pre-installed third-party libraries that you can use in your plugins without any extra setup.
+
+## Python Version
+Python: 3.11
+## Pre-installed Pip Packages
+
+You can directly import and use the following libraries in your plugin code:
+
+beautifulsoup4: A library for pulling data out of HTML and XML files. Useful for web scraping.
+debugpy: The official debugger for Python from Microsoft, enabling remote debugging capabilities (used by the Dev Server).
+lxml: A powerful and Pythonic library for processing XML and HTML.
+packaging: Core utilities for Python packages.
+pillow: The friendly PIL fork (Python Imaging Library). Useful for image manipulation.
+requests: A simple, yet elegant, HTTP library. Essential for making web requests.
+PyYAML: A YAML parser and emitter for Python.
+## Using Other Libraries
+
+If your plugin requires a library that is not on this list, you can use the built-in PIP-like package manager by declaring it in your plugin's __requirements__.
+
+However, please note that binary extensions are not supported. Only pure-Python libraries can be installed. For more details, see the PIP & Dependencies page.
+
+Previous
+
+PIP & Dependencies
+
+Next
+
+Common Telegram Classes

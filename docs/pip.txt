@@ -1,0 +1,77 @@
+# PIP & Dependencies
+
+Learn how to use external Python libraries in your plugins using the built-in PIP-like package manager.
+
+The plugin system includes a built-in package manager that can automatically download and install dependencies from PyPI.
+
+## Declaring Dependencies
+
+To use external libraries, you need to list them in your plugin's metadata using the __requirements__ variable. This should be a list of strings following the standard PEP 508 requirement format.
+
+
+```
+__id__ = "inline_calculator"
+__name__ = "Inline Calculator"
+__requirements__ = ["mpmath", "tinydb"]
+ 
+from base_plugin import BasePlugin, HookResult, HookStrategy
+from mpmath import mp
+from tinydb import TinyDB
+ 
+class CalculatorPlugin(BasePlugin):
+    ...
+```
+
+
+When a user installs your plugin, exteraGram will automatically download these libraries and their dependencies.
+
+## How it Works
+Resolution: The system fetches package metadata from PyPI to find a version that satisfies your constraints.
+Pure-Python Only: It only downloads "pure-Python" wheels (files ending in -none-any.whl).
+Isolation: Libraries are installed in a shared libs directory. If multiple plugins require the same version of a library, it is only downloaded once.
+Automatic Cleanup: When you uninstall a plugin, any dependencies that are no longer needed by any other plugin are automatically removed.
+## Limitations
+
+The built-in package manager has several important limitations compared to a full pip installation:
+
+### 1. No Binary Extensions
+
+The most significant limitation. Many popular Python libraries (like numpy, pandas, scipy, cryptography, or opencv) contain C/C++ extensions. These cannot be installed because they must be compiled for the specific Android architecture and linked against the application's Python runtime.
+
+Allowed: Packages that say "Universal" or "none-any" in their wheel filename.
+Forbidden: Packages that require a specific platform (e.g., manylinux, macosx, win_amd64) or have compiled components.
+### 2. Dependency Conflicts
+
+Unlike a virtual environment, all plugins share the same set of installed libraries.
+
+If Plugin A requires requests==2.25.1 and Plugin B requires requests==2.31.0, a conflict occurs.
+The system will attempt to use a version that satisfies both. If no such version is currently active or available, the installation of the second plugin will fail.
+### 3. Network Access
+
+Installation requires an active internet connection to reach pypi.org and download files.
+
+### 4. Limited Marker Support
+
+The system supports basic environment markers (like python_version, sys_platform), but complex markers or those referring to extra might not work as expected.
+
+## Pre-installed Libraries
+
+Some libraries are pre-installed in the application for performance and stability. You don't need to list them in __requirements__, but doing so is harmless.
+
+Check the Available Libraries page for the full list.
+
+## Troubleshooting
+
+If a plugin fails to install due to a dependency error:
+
+"No pure-Python wheel found": The library you are trying to use contains compiled code. You cannot use this library unless it is manually added to the core application.
+"Dependency conflict": Another installed plugin is using an incompatible version of the same library.
+"Package not found": Check the spelling of the package name or its availability on PyPI.
+
+Previous
+
+Development Server
+
+Next
+
+Available Libraries

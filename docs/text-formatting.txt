@@ -1,0 +1,103 @@
+# Text Formatting
+
+This module provides the ability to parse HTML and Markdown formatted text and convert formatting entities to TLRPC objects suitable for the Telegram API.
+
+The extera_utils.text_formatting module allows you to easily convert text with HTML or Markdown formatting into a plain text string and a list of TLRPC.MessageEntity objects.
+
+You generally don't need to use this module directly if you are using client_utils.send_message (or send_text, etc.), as those functions accept a convenient parse_mode parameter. However, if you need to manually parse text for other purposes, this module provides the necessary tools.
+
+## parse_text
+
+The main entry point is the parse_text function.
+
+
+```
+from extera_utils.text_formatting import parse_text
+ 
+def parse_text(text: str, parse_mode: Optional[str] = 'HTML', is_caption: bool = False) -> Dict[str, Any]:
+    ...
+```
+
+
+Parameters:
+
+text: The input string containing formatting tags or markdown.
+parse_mode: The format to use. Either 'HTML' (default) or 'Markdown'.
+is_caption: If True, the returned dictionary key for text will be "caption"; otherwise "message".
+
+Returns: A dictionary containing:
+
+"message" (or "caption"): The plain text content with formatting markers removed.
+"entities": A list of TLRPC.MessageEntity objects.
+### Usage Example
+
+```
+from extera_utils.text_formatting import parse_text
+from client_utils import send_message
+ 
+# Parsing HTML
+html_input = "<b>Bold</b>, <i>Italic</i>, and <a href='https://example.com'>Link</a>"
+parsed_html = parse_text(html_input, parse_mode='HTML')
+ 
+# parsed_html is roughly:
+# {
+#   "message": "Bold, Italic, and Link",
+#   "entities": [TL_messageEntityBold(...), TL_messageEntityItalic(...), TL_messageEntityTextUrl(...)]
+# }
+ 
+# You can pass this dictionary directly to send_message (via kwargs unpacking if keys match params)
+# But client_utils functions handle this automatically via parse_mode argument.
+ 
+# Parsing Markdown
+md_input = "**Bold**, __Italic__, and [Link](https://example.com)"
+parsed_md = parse_text(md_input, parse_mode='Markdown')
+```
+
+## Supported Formatting
+### HTML Tags
+
+The HTML parser supports the following tags:
+
+<b>, <strong>: Bold
+<i>, <em>: Italic
+<u>: Underline
+<s>, <del>, <strike>: Strikethrough
+<a href="...">: Text Link
+<code>: Inline Code
+<pre language="...">: Preformatted Code Block (language is optional)
+<spoiler>, <tg-spoiler>: Spoiler
+<blockquote>: Blockquote
+Add attribute expandable or collapsed for expandable blockquotes (e.g. <blockquote expandable>).
+<emoji id="...">: Custom Emoji
+### Markdown
+
+The Markdown parser supports the following syntax:
+
+*bold*: Bold
+_italic_: Italic
+__underline__: Underline
+~strikethrough~: Strikethrough
+||spoiler||: Spoiler
+`code`: Inline Code
+```code block```: Preformatted Code Block
+```python ... ```: Code Block with language
+[text](url): Text Link
+![alt](tg://emoji?id=123): Custom Emoji
+> Quote: Blockquote
+**> Quote: Expandable Quote
+## Helper Classes
+### TLEntityType
+
+Enum representing supported entity types: CODE, PRE, STRIKETHROUGH, TEXT_LINK, BOLD, ITALIC, UNDERLINE, SPOILER, CUSTOM_EMOJI, BLOCKQUOTE.
+
+### RawEntity
+
+Intermediate representation of an entity before converting to TLRPC. Contains offset, length, and extra attributes like url, language, document_id (for emojis), collapsed (for blockquotes).
+
+Previous
+
+Client Utilities
+
+Next
+
+Hook Utilities (Reflection)

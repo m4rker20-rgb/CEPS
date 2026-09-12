@@ -1,0 +1,138 @@
+# Alert Dialog Builder
+
+A Pythonic wrapper for creating and managing Telegram-style AlertDialogs.
+
+The AlertDialogBuilder class, found in ui/alert, provides a convenient way to construct and display various types of alert dialogs within your plugins. It wraps org.telegram.ui.ActionBar.AlertDialog.Builder and simplifies its usage from Python.
+
+## Basic Usage
+
+```
+from ui.alert import AlertDialogBuilder
+from client_utils import get_last_fragment
+from android_utils import log
+ 
+# Get current activity (context)
+current_fragment = get_last_fragment()
+if not current_fragment:
+    log("Cannot show dialog, no current fragment.")
+    # return or handle error
+ 
+activity = current_fragment.getParentActivity()
+if not activity:
+    log("Cannot show dialog, no parent activity.")
+    # return or handle error
+ 
+# Create a simple message dialog
+builder = AlertDialogBuilder(activity) # Default is ALERT_TYPE_MESSAGE
+builder.set_title("My Plugin Alert")
+builder.set_message("This is an important message from the plugin.")
+ 
+# Add buttons
+def on_positive_click(bld: AlertDialogBuilder, which: int):
+    log("Positive button clicked!")
+    bld.dismiss()
+ 
+def on_negative_click(bld: AlertDialogBuilder, which: int):
+    log("Negative button clicked!")
+    bld.dismiss()
+ 
+builder.set_positive_button("OK", on_positive_click)
+builder.set_negative_button("Cancel", on_negative_click)
+ 
+# create() is optional, but useful if you want to tweak flags before show()
+builder.create()
+builder.set_cancelable(True)
+builder.show()
+```
+
+## Dialog Types
+
+AlertDialogBuilder supports different styles of dialogs, controlled by the progress_style parameter in its constructor:
+
+AlertDialogBuilder.ALERT_TYPE_MESSAGE (default): Standard message dialog.
+AlertDialogBuilder.ALERT_TYPE_LOADING: Dialog with a determinate horizontal progress bar. Use builder.set_progress(value) to update.
+AlertDialogBuilder.ALERT_TYPE_SPINNER: Dialog with an indeterminate spinner, often used for loading states.
+
+```
+# Loading dialog example
+loading_builder = AlertDialogBuilder(activity, AlertDialogBuilder.ALERT_TYPE_SPINNER)
+loading_builder.set_title("Loading Data...")
+loading_builder.set_message("Please wait while data is being fetched.")
+loading_builder.show()
+loading_builder.set_cancelable(False) # Best called after create() or show()
+ 
+# Later, when loading is done:
+# loading_builder.dismiss()
+```
+
+## Key Methods
+### Initialization
+AlertDialogBuilder(context: Context, progress_style: int = ALERT_TYPE_MESSAGE, resources_provider: Optional[Theme.ResourcesProvider] = None): Constructor.
+### Content
+set_title(title: str): Sets the dialog title.
+set_message(message: str): Sets the main message content.
+set_message_text_view_clickable(clickable: bool): Makes the message text clickable (e.g., for links).
+set_view(view: View, height: int = -2): Sets a custom Android View as the dialog's content.
+set_items(items: List[str], listener: Optional[Callable[['AlertDialogBuilder', int], None]] = None, icons: Optional[List[int]] = None): Displays a list of items. The listener is called with the dialog builder instance and the index of the clicked item.
+### Buttons
+set_positive_button(text: str, listener: Optional[Callable[['AlertDialogBuilder', int], None]] = None)
+set_negative_button(text: str, listener: Optional[Callable[['AlertDialogBuilder', int], None]] = None)
+set_neutral_button(text: str, listener: Optional[Callable[['AlertDialogBuilder', int], None]] = None)
+Listeners receive the AlertDialogBuilder instance and a button identifier (AlertDialogBuilder.BUTTON_POSITIVE, etc.).
+make_button_red(button_type: int): Styles a button's text (e.g., AlertDialogBuilder.BUTTON_NEGATIVE) with red color (using Theme.key_text_RedBold).
+### Listeners
+set_on_back_button_listener(listener: Optional[Callable[['AlertDialogBuilder', int], None]] = None): For back button presses while the dialog is shown.
+set_on_dismiss_listener(listener: Optional[Callable[['AlertDialogBuilder'], None]] = None): Called when the dialog is dismissed for any reason.
+set_on_cancel_listener(listener: Optional[Callable[['AlertDialogBuilder'], None]] = None): Called when the dialog is cancelled (e.g., by back press or touch outside, if cancelable).
+### Appearance & Behavior
+set_top_image(res_id: int, background_color: int)
+set_top_drawable(drawable: Drawable, background_color: int)
+set_top_animation(res_id: int, size: int, auto_repeat: bool, background_color: int, layer_colors: Optional[Dict[str, int]] = None)
+set_dim_enabled(enabled: bool): Enables/disables dimming of the background.
+set_dialog_button_color_key(theme_key: int): Sets a theme color key for buttons.
+set_blurred_background(blur: bool, blur_behind_if_possible: bool = True): Attempts to apply a blurred background.
+set_cancelable(cancelable: bool): Sets if the dialog can be dismissed by tapping outside or pressing back. Best called after create() or show().
+set_canceled_on_touch_outside(cancel: bool): Sets if tapping outside dismisses. Best called after create() or show().
+### Lifecycle
+create() -> 'AlertDialogBuilder': Creates the dialog but doesn't show it.
+show() -> 'AlertDialogBuilder': Creates (if not already) and shows the dialog.
+dismiss(): Dismisses the dialog if it's showing.
+get_dialog() -> Optional[AlertDialog]: Returns the underlying Java AlertDialog instance.
+get_button(button_type: int) -> Optional[View]: Gets a button view from the dialog (e.g., for custom styling). Call after create() or show().
+### Progress
+set_progress(progress: int): Sets the progress for ALERT_TYPE_LOADING dialogs (0-100).
+## Example: Dialog with Items
+
+```
+from ui.alert import AlertDialogBuilder
+from client_utils import get_last_fragment
+from android_utils import log
+ 
+def on_item_click(bld: AlertDialogBuilder, which: int):
+    items_list = ["Option A", "Option B", "Option C"]
+    log(f"Item '{items_list[which]}' (index {which}) selected.")
+    bld.dismiss()
+ 
+item_builder = AlertDialogBuilder(activity)
+item_builder.set_title("Choose an Option")
+item_builder.set_items(
+    ["Option A", "Option B", "Option C"],
+    on_item_click
+)
+item_builder.set_negative_button("Cancel", lambda b, w: b.dismiss())
+item_builder.show()
+```
+
+## Important Notes
+Context: Always provide a valid Android Context (usually an Activity) to the constructor. get_last_fragment().getParentActivity() is a common way to get this.
+Listeners: The listener callables you provide will receive the Python AlertDialogBuilder instance as their first argument, allowing you to interact with the dialog (e.g., bld.dismiss()) from within the callback.
+Thread Safety: Dialog manipulation (creating, showing, dismissing, updating content) should generally happen on the Android UI thread. Use android_utils.run_on_ui_thread if you're performing these actions from a background thread.
+Error Handling: The proxy listeners in alert.py include basic try-except blocks to log errors occurring within your Python callbacks, preventing crashes.
+
+Previous
+
+Intents
+
+Next
+
+Bulletin Helper
